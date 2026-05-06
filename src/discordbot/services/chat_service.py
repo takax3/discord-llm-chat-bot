@@ -17,6 +17,7 @@ def remove_bot_mention(message_content: str, bot_user_id: int) -> str:
 @dataclass(frozen=True)
 class ChatService:
     mention_response: str
+    max_response_chars: int
 
     def is_guild_message_allowed(
         self,
@@ -35,8 +36,9 @@ class ChatService:
         *,
         mentioned_user_ids: list[int],
         bot_user_id: int,
+        is_reply_to_bot: bool,
     ) -> bool:
-        return bot_user_id in mentioned_user_ids
+        return bot_user_id in mentioned_user_ids or is_reply_to_bot
 
     def extract_user_message(
         self,
@@ -54,3 +56,12 @@ class ChatService:
 
     def build_ollama_error_reply(self) -> str:
         return DEFAULT_OLLAMA_ERROR_RESPONSE
+
+    def normalize_reply(self, reply: str) -> str:
+        stripped_reply = reply.strip()
+        if len(stripped_reply) <= self.max_response_chars:
+            return stripped_reply
+
+        suffix = "\n..."
+        truncated_length = max(self.max_response_chars - len(suffix), 1)
+        return f"{stripped_reply[:truncated_length].rstrip()}{suffix}"

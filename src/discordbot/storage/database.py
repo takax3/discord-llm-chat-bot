@@ -17,10 +17,25 @@ CREATE TABLE IF NOT EXISTS guild_settings (
 )
 """
 
+CREATE_CONVERSATION_MESSAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_message_id INTEGER NOT NULL UNIQUE,
+    reply_to_message_id INTEGER,
+    guild_id INTEGER NOT NULL,
+    channel_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 
 def initialize_database(sqlite_path: Path) -> sqlite3.Connection:
     sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(sqlite_path)
     connection.execute(CREATE_GUILD_SETTINGS_TABLE_SQL)
+    connection.execute(CREATE_CONVERSATION_MESSAGES_TABLE_SQL)
     connection.commit()
     return connection

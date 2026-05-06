@@ -11,3 +11,4 @@
 - 推論開始時に待機メッセージを返し、完了後に編集するようにした
 - `ollama` サービスに `gpus: all` を追加し、GPU 推論前提の Compose 構成にした
 - `ollama` サービスを NVIDIA device reservation と healthcheck ベースの GPU 構成へ調整した
+- Bot の返信に reply したとき、保存済みの返信チェーンを会話コンテキストとして引き継ぐようにした

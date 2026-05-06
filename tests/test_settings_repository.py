@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 from discordbot.config import AppConfig
+from discordbot.constants import DEFAULT_MAX_RESPONSE_CHARS
 from discordbot.storage.settings_repository import SettingsRepository
 
 
@@ -28,6 +29,8 @@ def test_get_guild_settings_returns_defaults_when_row_is_missing() -> None:
             mention_response="ready",
             default_allowed_channel_ids=(100, 200),
             log_level="INFO",
+            max_history_messages=20,
+            max_response_chars=DEFAULT_MAX_RESPONSE_CHARS,
             ollama_base_url="http://ollama:11434",
             ollama_model="qwen3:8b",
             ollama_timeout_seconds=60,
@@ -72,6 +75,8 @@ def test_get_guild_settings_returns_persisted_values() -> None:
             mention_response="ready",
             default_allowed_channel_ids=(),
             log_level="INFO",
+            max_history_messages=20,
+            max_response_chars=DEFAULT_MAX_RESPONSE_CHARS,
             ollama_base_url="http://ollama:11434",
             ollama_model="qwen3:8b",
             ollama_timeout_seconds=60,

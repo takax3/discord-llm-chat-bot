@@ -4,6 +4,7 @@ from discordbot.config import load_config
 from discordbot.integrations.discord_client import build_discord_client
 from discordbot.integrations.ollama_client import OllamaClient
 from discordbot.messages import format_message
+from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.database import initialize_database
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.version import get_app_version
@@ -30,11 +31,13 @@ def main() -> None:
         connection=database_connection,
         config=config,
     )
+    conversation_repository = ConversationRepository(connection=database_connection)
     ollama_client = OllamaClient.from_config(config)
     client = build_discord_client(
         config=config,
         logger=logger,
         ollama_client=ollama_client,
+        conversation_repository=conversation_repository,
         settings_repository=settings_repository,
     )
     client.run(config.discord_bot_token, log_handler=None)

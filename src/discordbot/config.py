@@ -4,7 +4,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from discordbot.constants import DEFAULT_LOG_LEVEL, DEFAULT_MENTION_RESPONSE
+from discordbot.constants import (
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_MAX_RESPONSE_CHARS,
+    DEFAULT_MENTION_RESPONSE,
+)
 
 
 @dataclass(frozen=True)
@@ -13,6 +17,8 @@ class AppConfig:
     mention_response: str
     default_allowed_channel_ids: tuple[int, ...]
     log_level: str
+    max_history_messages: int
+    max_response_chars: int
     ollama_base_url: str
     ollama_model: str
     ollama_timeout_seconds: int
@@ -49,6 +55,12 @@ def load_config() -> AppConfig:
     default_allowed_channel_ids = _parse_channel_ids(
         os.getenv("DEFAULT_ALLOWED_CHANNEL_IDS", "")
     )
+    max_history_messages = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
+    max_response_chars = int(
+        os.getenv("MAX_RESPONSE_CHARS", str(DEFAULT_MAX_RESPONSE_CHARS))
+    )
+    if max_response_chars <= 0:
+        raise ValueError("MAX_RESPONSE_CHARS must be greater than 0.")
     ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434").strip()
     if not ollama_base_url:
         raise ValueError("OLLAMA_BASE_URL is required.")
@@ -66,6 +78,8 @@ def load_config() -> AppConfig:
         mention_response=mention_response,
         default_allowed_channel_ids=default_allowed_channel_ids,
         log_level=os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).upper(),
+        max_history_messages=max_history_messages,
+        max_response_chars=max_response_chars,
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
         ollama_timeout_seconds=ollama_timeout_seconds,

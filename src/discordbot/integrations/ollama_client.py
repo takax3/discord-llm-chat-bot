@@ -29,14 +29,13 @@ class OllamaClient:
             timeout_seconds=config.ollama_timeout_seconds,
         )
 
-    async def generate_reply(self, user_message: str) -> str:
-        return await asyncio.to_thread(self._generate_reply_sync, user_message)
+    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+        return await asyncio.to_thread(self._generate_reply_sync, messages)
 
-    def _generate_reply_sync(self, user_message: str) -> str:
+    def _generate_reply_sync(self, messages: list[dict[str, str]]) -> str:
         payload = build_ollama_payload(
             model=self.model,
-            system_prompt=self.system_prompt,
-            user_message=user_message,
+            messages=messages,
         )
         request = urllib.request.Request(
             url=f"{self.base_url}/api/chat",
@@ -60,14 +59,10 @@ class OllamaClient:
 def build_ollama_payload(
     *,
     model: str,
-    system_prompt: str,
-    user_message: str,
+    messages: list[dict[str, str]],
 ) -> dict[str, object]:
     return {
         "model": model,
         "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        "messages": messages,
     }
