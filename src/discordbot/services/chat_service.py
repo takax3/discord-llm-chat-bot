@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from discordbot.domain.guild_settings import GuildSettings
+
 
 def remove_bot_mention(message_content: str, bot_user_id: int) -> str:
     mention_pattern = re.compile(rf"<@!?{bot_user_id}>")
@@ -13,6 +15,18 @@ def remove_bot_mention(message_content: str, bot_user_id: int) -> str:
 @dataclass(frozen=True)
 class ChatService:
     mention_response: str
+
+    def is_guild_message_allowed(
+        self,
+        *,
+        guild_settings: GuildSettings,
+        channel_id: int,
+    ) -> bool:
+        if not guild_settings.is_enabled:
+            return False
+        if not guild_settings.allowed_channel_ids:
+            return True
+        return channel_id in guild_settings.allowed_channel_ids
 
     def should_respond(
         self,

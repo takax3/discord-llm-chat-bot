@@ -1,3 +1,4 @@
+from discordbot.domain.guild_settings import GuildSettings
 from discordbot.services.chat_service import ChatService, remove_bot_mention
 
 
@@ -49,3 +50,33 @@ def test_build_reply_uses_default_message_when_only_mention_is_sent() -> None:
     )
 
     assert reply == "ready"
+
+
+def test_is_guild_message_allowed_returns_true_when_guild_enabled_and_no_channel_limit() -> None:
+    service = ChatService(mention_response="ready")
+
+    is_allowed = service.is_guild_message_allowed(
+        guild_settings=GuildSettings(
+            guild_id=1,
+            is_enabled=True,
+            allowed_channel_ids=(),
+        ),
+        channel_id=10,
+    )
+
+    assert is_allowed is True
+
+
+def test_is_guild_message_allowed_returns_false_when_channel_is_not_allowed() -> None:
+    service = ChatService(mention_response="ready")
+
+    is_allowed = service.is_guild_message_allowed(
+        guild_settings=GuildSettings(
+            guild_id=1,
+            is_enabled=True,
+            allowed_channel_ids=(20, 30),
+        ),
+        channel_id=10,
+    )
+
+    assert is_allowed is False
