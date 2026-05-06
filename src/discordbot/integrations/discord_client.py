@@ -75,19 +75,20 @@ class DiscordBotClient(discord.Client):
         self._app_version = app_version
         self._shutdown_signal_name = "unknown"
         self._is_closing = False
-        self._startup_notified = False
+        self._ready_notified = False
         self._inference_queue = InferenceQueue()
 
     async def on_ready(self) -> None:
         if self.user is None:
             return
         self._logger.info(format_message("discord_ready", user=str(self.user)))
-        if not self._startup_notified:
-            await self._webhook_notifier.send_startup(
+        if not self._ready_notified:
+            await self._webhook_notifier.send_ready(
                 version=self._app_version,
                 guild_count=len(self.guilds),
+                model=self._config.ollama_model,
             )
-            self._startup_notified = True
+            self._ready_notified = True
 
     async def on_message(self, message: discord.Message) -> None:
         if self.user is None:

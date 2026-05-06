@@ -14,3 +14,9 @@ def test_format_message_returns_reply_context_log_message() -> None:
     )
 
     assert "reference_message_id=3" in message
+
+
+def test_format_message_returns_ollama_prewarm_message() -> None:
+    message = format_message("ollama_prewarm_started", model="gemma4:26b")
+
+    assert "gemma4:26b" in message

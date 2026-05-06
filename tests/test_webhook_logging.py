@@ -78,7 +78,7 @@ def test_should_send_webhook_uses_minimum_level_for_regular_logs() -> None:
     )
 
 
-def test_send_startup_posts_embed_payload(monkeypatch) -> None:
+def test_send_startup_started_posts_embed_payload(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
     notifier = DiscordWebhookNotifier(
         webhook_url="https://example.com/webhook",
@@ -93,12 +93,35 @@ def test_send_startup_posts_embed_payload(monkeypatch) -> None:
 
     monkeypatch.setattr(DiscordWebhookNotifier, "_post_payload", fake_post)
 
-    asyncio.run(notifier.send_startup(version="1.0.0", guild_count=2))
+    asyncio.run(notifier.send_startup_started(version="1.0.0", model="gemma4:26b"))
 
     embed = sent[0]["embeds"][0]
-    assert embed["title"] == "Bot Started"
+    assert embed["title"] == "Bot Startup Started"
+    assert {"name": "Model", "value": "gemma4:26b", "inline": True} in embed["fields"]
+
+
+def test_send_ready_posts_embed_payload(monkeypatch) -> None:
+    sent: list[dict[str, object]] = []
+    notifier = DiscordWebhookNotifier(
+        webhook_url="https://example.com/webhook",
+        minimum_level_name="ERROR",
+        notify_startup=True,
+        notify_shutdown=True,
+        notify_logs=False,
+    )
+
+    def fake_post(self, payload: dict[str, object]) -> None:
+        sent.append(payload)
+
+    monkeypatch.setattr(DiscordWebhookNotifier, "_post_payload", fake_post)
+
+    asyncio.run(notifier.send_ready(version="1.0.0", guild_count=2, model="gemma4:26b"))
+
+    embed = sent[0]["embeds"][0]
+    assert embed["title"] == "Bot Ready"
     assert embed["color"] == WEBHOOK_COLOR_SUCCESS
     assert {"name": "Version", "value": "1.0.0", "inline": True} in embed["fields"]
+    assert {"name": "Guilds", "value": "2", "inline": True} in embed["fields"]
 
 
 def test_build_record_payload_uses_embed_for_regular_logs() -> None:

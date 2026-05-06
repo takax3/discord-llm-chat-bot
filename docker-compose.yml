@@ -26,10 +26,14 @@ services:
     restart: unless-stopped
     ports:
       - "11434:11434"
+    env_file:
+      - .env
     environment:
-      OLLAMA_KEEP_ALIVE: 24h
-      OLLAMA_NUM_PARALLEL: 2
-      OLLAMA_CONTEXT_LENGTH: 8192
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-32768}
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
+      OLLAMA_GPU_LAYERS: ${OLLAMA_GPU_LAYERS:-100}
     deploy:
       resources:
         reservations:
@@ -51,6 +55,8 @@ services:
     image: curlimages/curl:latest
     container_name: discord-llm-chat-bot-ollama-init
     restart: "no"
+    env_file:
+      - .env
     depends_on:
       ollama:
         condition: service_healthy

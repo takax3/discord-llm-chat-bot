@@ -22,6 +22,8 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     monkeypatch.setenv("DEFAULT_ALLOWED_CHANNEL_IDS", "100, 200")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
+    monkeypatch.setenv("OLLAMA_PREWARM_ENABLED", "false")
+    monkeypatch.setenv("OLLAMA_PREWARM_PROMPT", "warm up")
     monkeypatch.setenv("SYSTEM_PROMPT", "system prompt")
     monkeypatch.setenv("OLLAMA_TIMEOUT_SECONDS", "90")
     monkeypatch.setenv("MAX_RESPONSE_CHARS", "1500")
@@ -42,6 +44,8 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     assert config.max_response_chars == 1500
     assert config.ollama_base_url == "http://ollama:11434"
     assert config.ollama_model == "qwen3:8b"
+    assert config.ollama_prewarm_enabled is False
+    assert config.ollama_prewarm_prompt == "warm up"
     assert config.system_prompt == "system prompt"
     assert config.ollama_timeout_seconds == 90
     assert config.sqlite_path.name == "test.db"

@@ -30,21 +30,28 @@ class OllamaClient:
         )
 
     async def generate_reply(self, messages: list[dict[str, str]]) -> str:
-        return await asyncio.to_thread(self._generate_reply_sync, messages)
+        return await asyncio.to_thread(self._request_chat_sync, messages)
 
-    def _generate_reply_sync(self, messages: list[dict[str, str]]) -> str:
+    async def prewarm(self, prompt: str) -> None:
+        messages = [{"role": "user", "content": prompt}]
+        await asyncio.to_thread(self._request_chat_sync, messages)
+
+    def _request_chat_sync(self, messages: list[dict[str, str]]) -> str:
         payload = build_ollama_payload(
             model=self.model,
             messages=messages,
         )
-        request = urllib.request.Request(
+        ollama_request = urllib.request.Request(
             url=f"{self.base_url}/api/chat",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(
+                ollama_request,
+                timeout=self.timeout_seconds,
+            ) as response:
                 response_payload = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise OllamaClientError("Failed to call Ollama.") from exc

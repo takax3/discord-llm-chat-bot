@@ -1,6 +1,9 @@
 MESSAGES = {
     "startup": "Starting discordbot v{version}",
     "database_ready": "SQLite initialized at {sqlite_path}",
+    "ollama_prewarm_started": "Starting Ollama prewarm for model={model}",
+    "ollama_prewarm_completed": "Completed Ollama prewarm for model={model}",
+    "ollama_prewarm_failed": "Ollama prewarm failed for model={model}",
     "discord_ready": "Discord client connected as {user}",
     "mention_received": "Received mention from user_id={user_id} channel_id={channel_id}",
     "reply_context_received": "Received reply-context message from user_id={user_id} channel_id={channel_id} reference_message_id={reference_message_id}",

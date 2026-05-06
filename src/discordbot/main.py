@@ -44,6 +44,10 @@ async def _run_bot(config: AppConfig, logger: logging.Logger) -> None:
         format_message("startup", version=APP_VERSION),
         extra={"skip_webhook": True},
     )
+    await webhook_notifier.send_startup_started(
+        version=APP_VERSION,
+        model=config.ollama_model,
+    )
     logger.info(format_message("database_ready", sqlite_path=str(config.sqlite_path)))
 
     settings_repository = SettingsRepository(
@@ -52,6 +56,18 @@ async def _run_bot(config: AppConfig, logger: logging.Logger) -> None:
     )
     conversation_repository = ConversationRepository(connection=database_connection)
     ollama_client = OllamaClient.from_config(config)
+    if config.ollama_prewarm_enabled:
+        logger.info(format_message("ollama_prewarm_started", model=config.ollama_model))
+        try:
+            await ollama_client.prewarm(config.ollama_prewarm_prompt)
+        except Exception:
+            logger.exception(
+                format_message("ollama_prewarm_failed", model=config.ollama_model)
+            )
+            raise
+        logger.info(
+            format_message("ollama_prewarm_completed", model=config.ollama_model)
+        )
     client = build_discord_client(
         config=config,
         logger=logger,

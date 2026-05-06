@@ -8,6 +8,8 @@ from discordbot.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_RESPONSE_CHARS,
     DEFAULT_MENTION_RESPONSE,
+    DEFAULT_OLLAMA_PREWARM_ENABLED,
+    DEFAULT_OLLAMA_PREWARM_PROMPT,
     DEFAULT_WEBHOOK_MIN_LEVEL_NAME,
     DEFAULT_WEBHOOK_NOTIFY_LOGS,
     DEFAULT_WEBHOOK_NOTIFY_SHUTDOWN,
@@ -30,6 +32,8 @@ class AppConfig:
     max_response_chars: int
     ollama_base_url: str
     ollama_model: str
+    ollama_prewarm_enabled: bool
+    ollama_prewarm_prompt: str
     ollama_timeout_seconds: int
     sqlite_path: Path
     system_prompt: str
@@ -88,6 +92,16 @@ def load_config() -> AppConfig:
     ollama_model = os.getenv("OLLAMA_MODEL", "").strip()
     if not ollama_model:
         raise ValueError("OLLAMA_MODEL is required.")
+    ollama_prewarm_enabled = _parse_bool_env(
+        os.getenv("OLLAMA_PREWARM_ENABLED"),
+        DEFAULT_OLLAMA_PREWARM_ENABLED,
+    )
+    ollama_prewarm_prompt = os.getenv(
+        "OLLAMA_PREWARM_PROMPT",
+        DEFAULT_OLLAMA_PREWARM_PROMPT,
+    ).strip()
+    if not ollama_prewarm_prompt:
+        ollama_prewarm_prompt = DEFAULT_OLLAMA_PREWARM_PROMPT
     system_prompt = os.getenv("SYSTEM_PROMPT", "").strip()
     if not system_prompt:
         raise ValueError("SYSTEM_PROMPT is required.")
@@ -120,6 +134,8 @@ def load_config() -> AppConfig:
         max_response_chars=max_response_chars,
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
+        ollama_prewarm_enabled=ollama_prewarm_enabled,
+        ollama_prewarm_prompt=ollama_prewarm_prompt,
         ollama_timeout_seconds=ollama_timeout_seconds,
         sqlite_path=sqlite_path,
         system_prompt=system_prompt,

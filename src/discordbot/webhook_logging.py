@@ -84,6 +84,35 @@ class DiscordWebhookNotifier:
         )
         await asyncio.to_thread(self._post_payload, payload)
 
+    async def send_startup_started(self, *, version: str, model: str) -> None:
+        if not self.webhook_url or not self.notify_startup:
+            return
+        payload = self._build_embed_payload(
+            title="Bot Startup Started",
+            description=f"discordbot v{version} startup processing has started.",
+            color=WEBHOOK_COLOR_INFO,
+            fields=[
+                {"name": "Version", "value": version, "inline": True},
+                {"name": "Model", "value": model, "inline": True},
+            ],
+        )
+        await asyncio.to_thread(self._post_payload, payload)
+
+    async def send_ready(self, *, version: str, guild_count: int, model: str) -> None:
+        if not self.webhook_url or not self.notify_startup:
+            return
+        payload = self._build_embed_payload(
+            title="Bot Ready",
+            description="Warmup completed and discordbot is ready to accept chat.",
+            color=WEBHOOK_COLOR_SUCCESS,
+            fields=[
+                {"name": "Version", "value": version, "inline": True},
+                {"name": "Model", "value": model, "inline": True},
+                {"name": "Guilds", "value": str(guild_count), "inline": True},
+            ],
+        )
+        await asyncio.to_thread(self._post_payload, payload)
+
     async def send_shutdown(self, *, signal_name: str, guild_count: int) -> None:
         if not self.webhook_url or not self.notify_shutdown:
             return
