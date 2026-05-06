@@ -1,0 +1,21 @@
+[project]
+name = "discord-llm-chat-bot"
+version = "0.1.0"
+description = "Ollama と Qwen を利用する Discord 向け LLM チャットボットです。"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+]
+
+[tool.poetry]
+packages = [{include = "discord_llm_chat_bot", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
