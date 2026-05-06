@@ -12,3 +12,5 @@
 - `ollama` サービスに `gpus: all` を追加し、GPU 推論前提の Compose 構成にした
 - `ollama` サービスを NVIDIA device reservation と healthcheck ベースの GPU 構成へ調整した
 - Bot の返信に reply したとき、保存済みの返信チェーンを会話コンテキストとして引き継ぐようにした
+- graceful shutdown 開始時に Bot の表示を先にオフラインへ切り替えるようにした
+- Discord webhook による起動通知、終了通知、ログ通知を任意で有効化できるようにした

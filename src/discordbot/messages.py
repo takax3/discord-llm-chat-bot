@@ -10,6 +10,11 @@ MESSAGES = {
     "ollama_fallback": "Fell back to error reply because Ollama request failed for channel_id={channel_id}",
     "conversation_message_saved": "Saved conversation message discord_message_id={message_id} role={role}",
     "reply_sent": "Sent mention reply to message_id={message_id}",
+    "shutdown_requested": "Received {signal_name}, scheduling graceful shutdown",
+    "shutdown_started": "Graceful shutdown started signal_name={signal_name}",
+    "presence_offline": "Presence set to offline",
+    "presence_offline_failed": "Failed to set presence offline during shutdown",
+    "signal_handler_not_supported": "Signal handlers are not supported for {signal_name} on this platform",
 }
 
 

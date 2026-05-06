@@ -26,6 +26,11 @@ def test_get_guild_settings_returns_defaults_when_row_is_missing() -> None:
         connection=connection,
         config=AppConfig(
             discord_bot_token="token",
+            discord_webhook_notify_logs=False,
+            discord_webhook_notify_logs_min_level="ERROR",
+            discord_webhook_notify_shutdown=True,
+            discord_webhook_notify_startup=True,
+            discord_webhook_url="",
             mention_response="ready",
             default_allowed_channel_ids=(100, 200),
             log_level="INFO",
@@ -72,6 +77,11 @@ def test_get_guild_settings_returns_persisted_values() -> None:
         connection=connection,
         config=AppConfig(
             discord_bot_token="token",
+            discord_webhook_notify_logs=False,
+            discord_webhook_notify_logs_min_level="ERROR",
+            discord_webhook_notify_shutdown=True,
+            discord_webhook_notify_startup=True,
+            discord_webhook_url="",
             mention_response="ready",
             default_allowed_channel_ids=(),
             log_level="INFO",

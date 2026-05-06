@@ -15,6 +15,8 @@ Discord との接続、Ollama への推論依頼、会話コンテキスト構�
 - Bot の返信に対する reply では、保存済みの返信チェーンをたどって会話コンテキストを引き継げます。
 - Ollama 推論中は先に `Thinking...` を返し、完了後にそのメッセージを更新します。
 - サーバー設定が未登録のときは環境変数の既定値を使い、登録済みサーバーでは SQLite 設定を参照します。
+- 終了処理開始時は Bot の表示を先にオフラインへ切り替えます。
+- Discord webhook による起動通知、終了通知、ログ通知を任意で有効化できます。
 
 ## 目指す機能
 - Discord で Bot が mention されたメッセージを受け取って Qwen モデルへ渡す
@@ -42,5 +44,11 @@ Discord との接続、Ollama への推論依頼、会話コンテキスト構�
 5. GPU 推論を使う前提で、`ollama` サービスには NVIDIA GPU の予約を明示しています。
    - Docker Desktop / NVIDIA Container Toolkit 側で GPU 利用が有効になっている必要があります。
    - `docker compose exec ollama nvidia-smi` で GPU が見えるか確認できます。
+6. Webhook 通知を使う場合は、必要に応じて `.env` に次を設定します。
+   - `DISCORD_WEBHOOK_URL`
+   - `DISCORD_WEBHOOK_NOTIFY_STARTUP`
+   - `DISCORD_WEBHOOK_NOTIFY_SHUTDOWN`
+   - `DISCORD_WEBHOOK_NOTIFY_LOGS`
+   - `DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL`
 
 `docker-compose.yml` は `discordbot`、`ollama`、`ollama-init` の 3 サービス構成です。Bot からは `http://ollama:11434` で Ollama に接続します。会話履歴と設定 DB は Docker volume `discordbot-data` に保存され、Ollama のモデルは `ollama-data` に保存されます。

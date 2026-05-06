@@ -8,12 +8,21 @@ from discordbot.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_RESPONSE_CHARS,
     DEFAULT_MENTION_RESPONSE,
+    DEFAULT_WEBHOOK_MIN_LEVEL_NAME,
+    DEFAULT_WEBHOOK_NOTIFY_LOGS,
+    DEFAULT_WEBHOOK_NOTIFY_SHUTDOWN,
+    DEFAULT_WEBHOOK_NOTIFY_STARTUP,
 )
 
 
 @dataclass(frozen=True)
 class AppConfig:
     discord_bot_token: str
+    discord_webhook_notify_logs: bool
+    discord_webhook_notify_logs_min_level: str
+    discord_webhook_notify_shutdown: bool
+    discord_webhook_notify_startup: bool
+    discord_webhook_url: str
     mention_response: str
     default_allowed_channel_ids: tuple[int, ...]
     log_level: str
@@ -40,10 +49,22 @@ def _parse_channel_ids(raw_value: str) -> tuple[int, ...]:
     return tuple(channel_ids)
 
 
+def _parse_bool_env(raw_value: str | None, default: bool) -> bool:
+    if raw_value is None:
+        return default
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def load_config() -> AppConfig:
     discord_bot_token = os.getenv("DISCORD_BOT_TOKEN", "").strip()
     if not discord_bot_token:
         raise ValueError("DISCORD_BOT_TOKEN is required.")
+    discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
 
     mention_response = os.getenv(
         "DISCORD_MENTION_RESPONSE",
@@ -75,6 +96,23 @@ def load_config() -> AppConfig:
 
     return AppConfig(
         discord_bot_token=discord_bot_token,
+        discord_webhook_notify_logs=_parse_bool_env(
+            os.getenv("DISCORD_WEBHOOK_NOTIFY_LOGS"),
+            DEFAULT_WEBHOOK_NOTIFY_LOGS,
+        ),
+        discord_webhook_notify_logs_min_level=os.getenv(
+            "DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL",
+            DEFAULT_WEBHOOK_MIN_LEVEL_NAME,
+        ).upper(),
+        discord_webhook_notify_shutdown=_parse_bool_env(
+            os.getenv("DISCORD_WEBHOOK_NOTIFY_SHUTDOWN"),
+            DEFAULT_WEBHOOK_NOTIFY_SHUTDOWN,
+        ),
+        discord_webhook_notify_startup=_parse_bool_env(
+            os.getenv("DISCORD_WEBHOOK_NOTIFY_STARTUP"),
+            DEFAULT_WEBHOOK_NOTIFY_STARTUP,
+        ),
+        discord_webhook_url=discord_webhook_url,
         mention_response=mention_response,
         default_allowed_channel_ids=default_allowed_channel_ids,
         log_level=os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).upper(),

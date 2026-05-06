@@ -13,6 +13,11 @@ def test_load_config_raises_when_discord_token_is_missing(monkeypatch: pytest.Mo
 
 def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DISCORD_BOT_TOKEN", "token")
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://example.com/webhook")
+    monkeypatch.setenv("DISCORD_WEBHOOK_NOTIFY_STARTUP", "false")
+    monkeypatch.setenv("DISCORD_WEBHOOK_NOTIFY_SHUTDOWN", "false")
+    monkeypatch.setenv("DISCORD_WEBHOOK_NOTIFY_LOGS", "true")
+    monkeypatch.setenv("DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL", "warning")
     monkeypatch.setenv("DISCORD_MENTION_RESPONSE", "   ")
     monkeypatch.setenv("DEFAULT_ALLOWED_CHANNEL_IDS", "100, 200")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
@@ -26,6 +31,11 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     config = load_config()
 
     assert config.discord_bot_token == "token"
+    assert config.discord_webhook_notify_logs is True
+    assert config.discord_webhook_notify_logs_min_level == "WARNING"
+    assert config.discord_webhook_notify_shutdown is False
+    assert config.discord_webhook_notify_startup is False
+    assert config.discord_webhook_url == "https://example.com/webhook"
     assert config.mention_response == DEFAULT_MENTION_RESPONSE
     assert config.default_allowed_channel_ids == (100, 200)
     assert config.log_level == "DEBUG"

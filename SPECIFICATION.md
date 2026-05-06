@@ -22,6 +22,8 @@
 - Bot 自身の返信メッセージへの reply を受け取ったときも会話処理を継続できるようにする。
 - 受信メッセージを整形し、Ollama 上の Qwen モデルへプロンプトとして送る。
 - モデル応答を Discord メッセージとして段階表示で返す。
+- 終了処理開始時は Bot の表示を先にオフラインへ切り替える。
+- Discord webhook を用いた起動通知、終了通知、ログ通知を任意で有効化できる。
 - サーバー単位で Bot の有効 / 無効、利用チャンネル、モデル、システムプロンプト、制限値を管理できる構造にする。
 - 管理者向け slash command で運用設定を確認 / 変更できるようにする。
 
@@ -118,7 +120,11 @@
 - `STREAMING_UPDATE_INTERVAL_MS`: 段階表示時の更新間隔。
 - `OLLAMA_TIMEOUT_SECONDS`: Ollama 応答待機タイムアウト。
 - `LOG_LEVEL`: ログ出力レベル。
-- `NOTIFY_WEBHOOK_URL`: 任意の障害通知先 webhook。
+- `DISCORD_WEBHOOK_URL`: Discord webhook 通知先 URL。
+- `DISCORD_WEBHOOK_NOTIFY_STARTUP`: 起動通知を送るかどうか。
+- `DISCORD_WEBHOOK_NOTIFY_SHUTDOWN`: 終了通知を送るかどうか。
+- `DISCORD_WEBHOOK_NOTIFY_LOGS`: 通常ログ通知を送るかどうか。
+- `DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL`: 通常ログ通知の最小ログレベル。
 - `DATA_DIR`: 永続化データ保存先。
 - `SQLITE_PATH`: SQLite データベースファイルパス。
 
@@ -176,6 +182,8 @@
   - 返信不能な処理失敗
 - 通知条件:
   - 起動失敗
+  - 起動完了
+  - graceful shutdown 開始
   - 連続する Ollama 呼び出し失敗
   - 未処理例外
 
@@ -195,6 +203,7 @@
 
 ## 終了時動作
 - 終了シグナルまたは例外停止要求を受けたら、新規イベント受付を止める。
+- graceful shutdown 開始時に Bot の表示をオフラインへ切り替える。
 - 処理中リクエストをキャンセルまたは待機する。
 - Discord クライアントを切断する。
 - Ollama クライアントのセッションを閉じる。
@@ -209,6 +218,7 @@
 - `messages.py`: ユーザ向け / ログ向け文言。
 - `integrations/discord_client.py`: Discord 連携。
 - `integrations/ollama_client.py`: Ollama 連携。
+- `webhook_logging.py`: Discord webhook 通知と logging handler。
 - `services/chat_service.py`: 会話処理のユースケース。
 - `services/context_builder.py`: 会話履歴整形。
 - `services/admin_command_service.py`: slash command のユースケース。

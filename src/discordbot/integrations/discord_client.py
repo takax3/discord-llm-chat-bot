@@ -12,6 +12,7 @@ from discordbot.services.chat_service import ChatService
 from discordbot.services.context_builder import ContextBuilder
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.settings_repository import SettingsRepository
+from discordbot.webhook_logging import DiscordWebhookNotifier
 
 
 def build_discord_client(
@@ -21,6 +22,8 @@ def build_discord_client(
     ollama_client: OllamaClient,
     conversation_repository: ConversationRepository,
     settings_repository: SettingsRepository,
+    webhook_notifier: DiscordWebhookNotifier,
+    app_version: str,
 ) -> discord.Client:
     intents = discord.Intents.default()
     intents.message_content = True
@@ -39,6 +42,8 @@ def build_discord_client(
         ),
         conversation_repository=conversation_repository,
         settings_repository=settings_repository,
+        webhook_notifier=webhook_notifier,
+        app_version=app_version,
     )
 
 
@@ -53,6 +58,8 @@ class DiscordBotClient(discord.Client):
         context_builder: ContextBuilder,
         conversation_repository: ConversationRepository,
         settings_repository: SettingsRepository,
+        webhook_notifier: DiscordWebhookNotifier,
+        app_version: str,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
@@ -63,11 +70,22 @@ class DiscordBotClient(discord.Client):
         self._context_builder = context_builder
         self._conversation_repository = conversation_repository
         self._settings_repository = settings_repository
+        self._webhook_notifier = webhook_notifier
+        self._app_version = app_version
+        self._shutdown_signal_name = "unknown"
+        self._is_closing = False
+        self._startup_notified = False
 
     async def on_ready(self) -> None:
         if self.user is None:
             return
         self._logger.info(format_message("discord_ready", user=str(self.user)))
+        if not self._startup_notified:
+            await self._webhook_notifier.send_startup(
+                version=self._app_version,
+                guild_count=len(self.guilds),
+            )
+            self._startup_notified = True
 
     async def on_message(self, message: discord.Message) -> None:
         if self.user is None:
@@ -218,3 +236,32 @@ class DiscordBotClient(discord.Client):
                 role=message.role,
             )
         )
+
+    def set_shutdown_signal_name(self, signal_name: str) -> None:
+        self._shutdown_signal_name = signal_name
+
+    async def close(self) -> None:
+        if self._is_closing:
+            return
+        self._is_closing = True
+        self._logger.info(
+            format_message("shutdown_started", signal_name=self._shutdown_signal_name),
+            extra={"skip_webhook": True},
+        )
+        await self._webhook_notifier.send_shutdown(
+            signal_name=self._shutdown_signal_name,
+            guild_count=len(self.guilds),
+        )
+        if not self.is_closed():
+            try:
+                await self.change_presence(
+                    status=discord.Status.offline,
+                    activity=None,
+                )
+                self._logger.info(
+                    format_message("presence_offline"),
+                    extra={"skip_webhook": True},
+                )
+            except discord.DiscordException:
+                self._logger.exception(format_message("presence_offline_failed"))
+        await super().close()
