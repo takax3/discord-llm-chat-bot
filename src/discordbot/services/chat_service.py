@@ -3,7 +3,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from discordbot.constants import DEFAULT_OLLAMA_ERROR_RESPONSE
 from discordbot.domain.guild_settings import GuildSettings
+from discordbot.messages import format_message
 
 
 def remove_bot_mention(message_content: str, bot_user_id: int) -> str:
@@ -36,13 +38,19 @@ class ChatService:
     ) -> bool:
         return bot_user_id in mentioned_user_ids
 
-    def build_reply(
+    def extract_user_message(
         self,
         *,
         message_content: str,
         bot_user_id: int,
     ) -> str:
-        normalized_content = remove_bot_mention(message_content, bot_user_id)
-        if normalized_content:
-            return f"{self.mention_response}\n\nYou said: {normalized_content}"
+        return remove_bot_mention(message_content, bot_user_id)
+
+    def build_empty_message_reply(self) -> str:
         return self.mention_response
+
+    def build_thinking_reply(self) -> str:
+        return format_message("thinking")
+
+    def build_ollama_error_reply(self) -> str:
+        return DEFAULT_OLLAMA_ERROR_RESPONSE

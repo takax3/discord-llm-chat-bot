@@ -2,6 +2,7 @@ import logging
 
 from discordbot.config import load_config
 from discordbot.integrations.discord_client import build_discord_client
+from discordbot.integrations.ollama_client import OllamaClient
 from discordbot.messages import format_message
 from discordbot.storage.database import initialize_database
 from discordbot.storage.settings_repository import SettingsRepository
@@ -29,9 +30,11 @@ def main() -> None:
         connection=database_connection,
         config=config,
     )
+    ollama_client = OllamaClient.from_config(config)
     client = build_discord_client(
         config=config,
         logger=logger,
+        ollama_client=ollama_client,
         settings_repository=settings_repository,
     )
     client.run(config.discord_bot_token, log_handler=None)

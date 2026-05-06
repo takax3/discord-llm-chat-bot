@@ -5,6 +5,7 @@ import logging
 import discord
 
 from discordbot.config import AppConfig
+from discordbot.integrations.ollama_client import OllamaClient, OllamaClientError
 from discordbot.messages import format_message
 from discordbot.services.chat_service import ChatService
 from discordbot.storage.settings_repository import SettingsRepository
@@ -14,6 +15,7 @@ def build_discord_client(
     *,
     config: AppConfig,
     logger: logging.Logger,
+    ollama_client: OllamaClient,
     settings_repository: SettingsRepository,
 ) -> discord.Client:
     intents = discord.Intents.default()
@@ -23,6 +25,7 @@ def build_discord_client(
         chat_service=ChatService(mention_response=config.mention_response),
         intents=intents,
         logger=logger,
+        ollama_client=ollama_client,
         settings_repository=settings_repository,
     )
 
@@ -34,6 +37,7 @@ class DiscordBotClient(discord.Client):
         config: AppConfig,
         chat_service: ChatService,
         logger: logging.Logger,
+        ollama_client: OllamaClient,
         settings_repository: SettingsRepository,
         **kwargs: object,
     ) -> None:
@@ -41,6 +45,7 @@ class DiscordBotClient(discord.Client):
         self._config = config
         self._chat_service = chat_service
         self._logger = logger
+        self._ollama_client = ollama_client
         self._settings_repository = settings_repository
 
     async def on_ready(self) -> None:
@@ -87,9 +92,31 @@ class DiscordBotClient(discord.Client):
                 channel_id=message.channel.id,
             )
         )
-        reply = self._chat_service.build_reply(
+        user_message = self._chat_service.extract_user_message(
             message_content=message.content,
             bot_user_id=self.user.id,
         )
-        sent_message = await message.reply(reply, mention_author=False)
+        if not user_message:
+            sent_message = await message.reply(
+                self._chat_service.build_empty_message_reply(),
+                mention_author=False,
+            )
+            self._logger.info(format_message("reply_sent", message_id=sent_message.id))
+            return
+
+        sent_message = await message.reply(
+            self._chat_service.build_thinking_reply(),
+            mention_author=False,
+        )
+        try:
+            reply = await self._ollama_client.generate_reply(user_message)
+        except OllamaClientError:
+            self._logger.warning(
+                format_message(
+                    "ollama_fallback",
+                    channel_id=message.channel.id,
+                )
+            )
+            reply = self._chat_service.build_ollama_error_reply()
+        await sent_message.edit(content=reply)
         self._logger.info(format_message("reply_sent", message_id=sent_message.id))

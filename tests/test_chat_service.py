@@ -30,26 +30,39 @@ def test_remove_bot_mention_keeps_user_prompt() -> None:
     assert normalized == "hello there"
 
 
-def test_build_reply_includes_normalized_message_content() -> None:
+def test_extract_user_message_returns_normalized_message_content() -> None:
     service = ChatService(mention_response="ready")
 
-    reply = service.build_reply(
+    user_message = service.extract_user_message(
         message_content="<@12345> hello there",
         bot_user_id=12345,
     )
 
-    assert reply == "ready\n\nYou said: hello there"
+    assert user_message == "hello there"
 
 
-def test_build_reply_uses_default_message_when_only_mention_is_sent() -> None:
+def test_build_empty_message_reply_uses_default_message() -> None:
     service = ChatService(mention_response="ready")
 
-    reply = service.build_reply(
-        message_content="<@12345>",
-        bot_user_id=12345,
-    )
+    reply = service.build_empty_message_reply()
 
     assert reply == "ready"
+
+
+def test_build_ollama_error_reply_returns_fallback_message() -> None:
+    service = ChatService(mention_response="ready")
+
+    reply = service.build_ollama_error_reply()
+
+    assert "Ollama" in reply
+
+
+def test_build_thinking_reply_returns_waiting_message() -> None:
+    service = ChatService(mention_response="ready")
+
+    reply = service.build_thinking_reply()
+
+    assert reply == "Thinking..."
 
 
 def test_is_guild_message_allowed_returns_true_when_guild_enabled_and_no_channel_limit() -> None:

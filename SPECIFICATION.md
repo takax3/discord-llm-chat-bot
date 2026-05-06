@@ -57,7 +57,8 @@
   - 正常系:
     - Bot への mention を含むメッセージのみを抽出する。
     - サーバー設定と会話履歴を SQLite から取得する。
-    - Ollama にリクエストし、生成中メッセージを段階的に更新する。
+    - 現在の実装では、mention を除去した当該メッセージ本文だけを Ollama に渡す。
+    - Ollama に単発リクエストし、生成結果を一括返信する。
     - 完了後にユーザ入力とモデル応答を履歴として保存する。
   - バリデーション失敗:
     - 対象外チャンネル、空メッセージ、長すぎる入力は処理せず案内文を返すか黙って無視する。
@@ -105,7 +106,7 @@
 
 ## 設定
 - `DISCORD_BOT_TOKEN`: Discord bot token。必須。
-- `DISCORD_MENTION_RESPONSE`: mention 受信時に返す固定応答文。最小疎通実装で使用する。
+- `DISCORD_MENTION_RESPONSE`: 本文が空の mention を受けたときの案内文。
 - `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
 - `OLLAMA_MODEL`: 利用する Qwen モデル名。例: `qwen3:8b`。
 - `SYSTEM_PROMPT`: 既定のシステムプロンプト。

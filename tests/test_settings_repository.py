@@ -28,7 +28,11 @@ def test_get_guild_settings_returns_defaults_when_row_is_missing() -> None:
             mention_response="ready",
             default_allowed_channel_ids=(100, 200),
             log_level="INFO",
+            ollama_base_url="http://ollama:11434",
+            ollama_model="qwen3:8b",
+            ollama_timeout_seconds=60,
             sqlite_path=Path("data/test.db"),
+            system_prompt="system prompt",
         ),
     )
 
@@ -68,7 +72,11 @@ def test_get_guild_settings_returns_persisted_values() -> None:
             mention_response="ready",
             default_allowed_channel_ids=(),
             log_level="INFO",
+            ollama_base_url="http://ollama:11434",
+            ollama_model="qwen3:8b",
+            ollama_timeout_seconds=60,
             sqlite_path=Path("data/test.db"),
+            system_prompt="system prompt",
         ),
     )
 
