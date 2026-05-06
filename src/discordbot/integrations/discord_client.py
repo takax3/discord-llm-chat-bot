@@ -10,6 +10,7 @@ from discordbot.integrations.ollama_client import OllamaClient, OllamaClientErro
 from discordbot.messages import format_message
 from discordbot.services.chat_service import ChatService
 from discordbot.services.context_builder import ContextBuilder
+from discordbot.services.inference_queue import InferenceQueue
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.webhook_logging import DiscordWebhookNotifier
@@ -75,6 +76,7 @@ class DiscordBotClient(discord.Client):
         self._shutdown_signal_name = "unknown"
         self._is_closing = False
         self._startup_notified = False
+        self._inference_queue = InferenceQueue()
 
     async def on_ready(self) -> None:
         if self.user is None:
@@ -174,25 +176,42 @@ class DiscordBotClient(discord.Client):
             self._logger.info(format_message("reply_sent", message_id=sent_message.id))
             return
 
-        sent_message = await message.reply(
-            self._chat_service.build_thinking_reply(),
-            mention_author=False,
-        )
-        prior_messages = self._build_prior_messages(message)
-        ollama_messages = self._context_builder.build_messages(
-            prior_messages=prior_messages,
-            user_message=user_message,
-        )
+        ticket, queue_ahead = await self._inference_queue.reserve()
+        turn_started = False
         try:
-            reply = await self._ollama_client.generate_reply(ollama_messages)
-        except OllamaClientError:
-            self._logger.warning(
-                format_message(
-                    "ollama_fallback",
-                    channel_id=message.channel.id,
-                )
+            sent_message = await message.reply(
+                self._chat_service.build_thinking_reply(queue_ahead),
+                mention_author=False,
             )
-            reply = self._chat_service.build_ollama_error_reply()
+            while queue_ahead > 0:
+                queue_ahead = await self._inference_queue.wait_for_ahead_change(
+                    ticket=ticket,
+                    previous_ahead=queue_ahead,
+                )
+                await sent_message.edit(
+                    content=self._chat_service.build_thinking_reply(queue_ahead)
+                )
+            turn_started = True
+            prior_messages = self._build_prior_messages(message)
+            ollama_messages = self._context_builder.build_messages(
+                prior_messages=prior_messages,
+                user_message=user_message,
+            )
+            try:
+                reply = await self._ollama_client.generate_reply(ollama_messages)
+            except OllamaClientError:
+                self._logger.warning(
+                    format_message(
+                        "ollama_fallback",
+                        channel_id=message.channel.id,
+                    )
+                )
+                reply = self._chat_service.build_ollama_error_reply()
+        finally:
+            if turn_started:
+                await self._inference_queue.finish_turn(ticket)
+            else:
+                await self._inference_queue.cancel(ticket)
         reply = self._chat_service.normalize_reply(reply)
         await sent_message.edit(content=reply)
         self._save_conversation_message(

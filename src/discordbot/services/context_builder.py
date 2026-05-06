@@ -31,7 +31,19 @@ class ContextBuilder:
         return messages
 
     def _build_system_prompt(self) -> str:
+        response_style_instruction = (
+            "If you do not know something, say clearly that you do not know instead of guessing. "
+            "Do not invent facts that are not supported by the conversation context. "
+            "If you are uncertain, say that it is a guess or needs confirmation. "
+            "For medical, legal, financial, security, or privacy-sensitive topics, avoid definitive claims and present general information with appropriate caution. "
+            "Reply concisely unless the user explicitly asks for a detailed explanation. "
+            "Reply in Japanese unless the user explicitly asks for another language."
+        )
         response_limit_instruction = (
             f"Keep your final response within {self._max_response_chars} characters."
         )
-        return f"{self._system_prompt}\n\n{response_limit_instruction}"
+        return (
+            f"{self._system_prompt}\n\n"
+            f"{response_style_instruction}\n"
+            f"{response_limit_instruction}"
+        )

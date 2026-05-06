@@ -96,9 +96,9 @@ def test_build_thinking_reply_returns_waiting_message() -> None:
         max_response_chars=DEFAULT_MAX_RESPONSE_CHARS,
     )
 
-    reply = service.build_thinking_reply()
+    reply = service.build_thinking_reply(2)
 
-    assert reply == "Thinking..."
+    assert reply == "Thinking... (Queue ahead: 2)"
 
 
 def test_is_guild_message_allowed_returns_true_when_guild_enabled_and_no_channel_limit() -> None:
