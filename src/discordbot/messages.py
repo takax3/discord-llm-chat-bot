@@ -1,5 +1,5 @@
 ﻿MESSAGES = {
-    "startup": "Starting discord-llm-chat-bot v{version}",
+    "startup": "Starting discordbot v{version}",
 }
 
 

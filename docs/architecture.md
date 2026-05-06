@@ -9,7 +9,7 @@
 
 ## 想定ディレクトリ構成
 ```text
-src/discord_llm_chat_bot/
+src/discordbot/
   main.py
   config.py
   constants.py

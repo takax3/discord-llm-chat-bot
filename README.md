@@ -24,5 +24,15 @@ Discord との接続、Ollama への推論依頼、会話コンテキスト構�
 - Qwen 系モデル
 - 任意のローカル永続化層
 
-## セットアップ予定
-詳細は実装開始後に更新します。現時点では `SPECIFICATION.md` の内容をもとに要件と設計を詰めている段階です。
+## Docker での起動
+1. `.env.example` を `.env` としてコピーし、`DISCORD_BOT_TOKEN` など必要な値を設定します。
+2. `docker compose up --build -d` を実行します。
+3. 初回は Ollama コンテナ内でモデルを取得します。
+
+```bash
+docker compose exec ollama ollama pull qwen3:8b
+```
+
+4. ログ確認は `docker compose logs -f discordbot` を使います。
+
+`docker-compose.yml` は `discordbot` と `ollama` の 2 サービス構成です。Bot からは `http://ollama:11434` で Ollama に接続します。会話履歴と設定 DB は Docker volume `discordbot-data` に保存され、Ollama のモデルは `ollama-data` に保存されます。

@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass
 
-from discord_llm_chat_bot.constants import DEFAULT_LOG_LEVEL
+from discordbot.constants import DEFAULT_LOG_LEVEL
 
 
 @dataclass(frozen=True)

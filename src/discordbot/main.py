@@ -1,8 +1,8 @@
 ﻿import logging
 
-from discord_llm_chat_bot.config import load_config
-from discord_llm_chat_bot.messages import format_message
-from discord_llm_chat_bot.version import get_app_version
+from discordbot.config import load_config
+from discordbot.messages import format_message
+from discordbot.version import get_app_version
 
 APP_VERSION = get_app_version()
 

@@ -14,7 +14,7 @@ dev = [
 ]
 
 [tool.poetry]
-packages = [{include = "discord_llm_chat_bot", from = "src"}]
+packages = [{include = "discordbot", from = "src"}]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

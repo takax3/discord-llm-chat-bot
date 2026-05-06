@@ -1,4 +1,4 @@
-from discord_llm_chat_bot.version import get_app_version
+from discordbot.version import get_app_version
 
 
 def test_get_app_version_from_project_metadata() -> None:
