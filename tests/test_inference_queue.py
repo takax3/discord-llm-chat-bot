@@ -56,3 +56,20 @@ def test_wait_for_ahead_change_reaches_zero_after_previous_turn_finishes() -> No
     updated_ahead = asyncio.run(scenario())
 
     assert updated_ahead == 0
+
+
+def test_get_status_returns_waiting_count() -> None:
+    async def scenario() -> tuple[int, int, int]:
+        queue = InferenceQueue()
+        first_ticket, _ = await queue.reserve()
+        await queue.reserve()
+        await queue.reserve()
+        await queue.finish_turn(first_ticket)
+        status = await queue.get_status()
+        return status.running_count, status.waiting_count, status.total_count
+
+    running_count, waiting_count, total_count = asyncio.run(scenario())
+
+    assert running_count == 1
+    assert waiting_count == 1
+    assert total_count == 2

@@ -1,12 +1,12 @@
 # Specification
 
 ## 概要
-- 目的: Discord サーバー上で動作する、Ollama + Qwen ベースのローカル LLM チャットボットを提供する。
+- 目的: Discord サーバー上で動作する、Ollama ベースのローカル LLM チャットボットを提供する。
 - 対象利用者: 自前サーバーまたはローカル PC 上で Discord bot を運用したい個人開発者または小規模チーム。
 - 外部依存:
   - Discord Gateway / REST API
   - Ollama HTTP API
-  - Qwen 系モデル
+  - Ollama 上の利用モデル
   - 任意の永続化先（初期案ではローカルファイルまたは SQLite）
 
 ## 前提と非目標
@@ -20,28 +20,32 @@
 ### 中核機能
 - Discord 上で Bot へのメンションを受け取ったときに会話処理を開始する。
 - Bot 自身の返信メッセージへの reply を受け取ったときも会話処理を継続できるようにする。
-- 受信メッセージを整形し、Ollama 上の Qwen モデルへプロンプトとして送る。
-- モデル応答を Discord メッセージとして段階表示で返す。
+- 受信メッセージを整形し、Ollama 上の利用モデルへプロンプトとして送る。
+- モデル応答を Discord メッセージとして返信し、推論中は待機メッセージを先に返す。
+- 同時に複数リクエストが来た場合は bot 内で推論を直列化する。
+- Discord の presence に待機キュー数と直近のトークンスピードを表示する。
 - 終了処理開始時は Bot の表示を先にオフラインへ切り替える。
-- Discord webhook を用いた起動通知、終了通知、ログ通知を任意で有効化できる。
+- Discord webhook を用いた起動開始通知、ready 通知、終了通知、ログ通知を任意で有効化できる。
 - サーバー単位で Bot の有効 / 無効、利用チャンネル、モデル、システムプロンプト、制限値を管理できる構造にする。
 - 管理者向け slash command で運用設定を確認 / 変更できるようにする。
 
 ### 主な業務フロー
 1. アプリ起動時に設定を読み込む。
 2. Discord クライアント、Ollama クライアント、永続化層、監視通知を初期化する。
-3. Bot が Discord イベントを購読する。
-4. Bot が mention されたメッセージ、または Bot の返信に対する reply を会話対象として抽出する。
-5. サーバーごとの利用可否と入力制約を検証する。
-6. SQLite から会話履歴とサーバー設定を取得し、会話コンテキストを構築する。
-7. Qwen へ問い合わせ、応答を段階的に Discord へ反映する。
-8. 終了シグナル受信時に新規受付を止め、未完了タスクを順次停止する。
+3. 必要に応じて Ollama prewarm を実行する。
+4. Bot が Discord イベントを購読する。
+5. Bot が mention されたメッセージ、または Bot の返信に対する reply を会話対象として抽出する。
+6. サーバーごとの利用可否と入力制約を検証する。
+7. SQLite から会話履歴とサーバー設定を取得し、会話コンテキストを構築する。
+8. 推論キューに積み、前のリクエスト完了を待ってから Ollama へ問い合わせる。
+9. 返信本文と presence を更新する。
+10. 終了シグナル受信時に新規受付を止め、未完了タスクを順次停止する。
 
 ### 重要な制約
 - Discord 側制限に合わせて応答文字数を制御する。
 - Ollama 応答遅延や失敗を考慮し、タイムアウトとユーザ向けエラーメッセージを持つ。
-- 同一チャンネルで同時に複数問い合わせが来た場合、メッセージ更新競合を避ける方針を持つ。
-- 段階表示中に Discord 編集制限やレート制限へ抵触しない更新頻度に制御する。
+- 同時に複数問い合わせが来た場合でも、推論は 1 本ずつ直列で処理する。
+- 待機中メッセージと presence 更新が Discord のレート制限へ過度に抵触しないようにする。
 - 監視通知の失敗で Bot 本体を停止させない。
 
 ## インターフェース
@@ -62,13 +66,15 @@
     - サーバー設定と会話履歴を SQLite から取得する。
     - 通常の mention では、mention を除去した当該メッセージ本文だけを Ollama に渡す。
     - Bot の返信に対する reply では、保存済みの返信チェーンをたどって会話コンテキストを組み立てる。
+    - まず待機メッセージを返信し、キュー待ち件数を表示する。
     - Ollama にリクエストし、生成結果を一括返信する。
+    - 推論完了時に最新のトークンスピードを presence に反映する。
     - 完了後にユーザ入力とモデル応答を履歴として保存する。
   - バリデーション失敗:
     - 対象外チャンネル、空メッセージ、長すぎる入力は処理せず案内文を返すか黙って無視する。
   - 実行時失敗:
     - Ollama 到達不能、タイムアウト、Discord 返信失敗時はログ出力し、可能なら簡潔な失敗メッセージを返す。
-    - 段階表示中に失敗した場合は最終状態を失敗文面へ更新するか、追補メッセージで失敗を通知する。
+    - 待機メッセージ更新や presence 更新に失敗しても Bot 全体は停止させない。
 
 ### 管理用 slash command
 - 目的: サーバーごとのモデル名、システムプロンプト、利用制限などの運用設定を管理する。
@@ -112,7 +118,14 @@
 - `DISCORD_BOT_TOKEN`: Discord bot token。必須。
 - `DISCORD_MENTION_RESPONSE`: 本文が空の mention を受けたときの案内文。
 - `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
-- `OLLAMA_MODEL`: 利用する Qwen モデル名。例: `qwen3:8b`。
+- `OLLAMA_MODEL`: 利用する Ollama モデル名。例: `qwen3.6:27b`, `gemma4:26b`。
+- `OLLAMA_KEEP_ALIVE`: Ollama 側でモデルを保持する時間。
+- `OLLAMA_NUM_PARALLEL`: Ollama 側の並列設定。
+- `OLLAMA_CONTEXT_LENGTH`: Ollama 側のコンテキスト長設定。
+- `OLLAMA_FLASH_ATTENTION`: Flash Attention 利用設定。
+- `OLLAMA_GPU_LAYERS`: GPU に配置するレイヤー設定。
+- `OLLAMA_PREWARM_ENABLED`: 起動前に prewarm を行うかどうか。
+- `OLLAMA_PREWARM_PROMPT`: prewarm 用プロンプト。
 - `SYSTEM_PROMPT`: 既定のシステムプロンプト。
 - `DEFAULT_ALLOWED_CHANNEL_IDS`: サーバー設定未登録時に使う許可チャンネル ID 一覧。
 - `MAX_HISTORY_MESSAGES`: 会話コンテキストに含める最大メッセージ数。
@@ -162,12 +175,12 @@
 
 ## ログと監視
 - INFO:
-  - 起動完了
+  - 起動開始
+  - prewarm 開始 / 完了
   - Discord 接続完了
   - 受信イベント受付
-  - slash command 実行受付
   - Ollama 推論開始 / 完了
-  - 応答段階更新
+  - presence 更新
   - 応答送信完了
   - graceful shutdown 開始 / 完了
 - WARNING:
@@ -189,17 +202,16 @@
 
 ## 起動時動作
 - 環境変数を読み込み、型と必須値を検証する。
-- Ollama 接続先の疎通確認を行う。
-- 利用モデルが利用可能か確認する。
 - SQLite スキーマを初期化する。
+- 起動開始通知が有効なら webhook を送る。
+- prewarm が有効な場合は、Discord 接続前に 1 回 Ollama を warmup する。
 - Discord クライアントを起動し、イベントハンドラを登録する。
-- slash command を同期する。
+- ready 到達後に ready 通知が有効なら webhook を送る。
 - 起動失敗条件:
   - `DISCORD_BOT_TOKEN` 未設定
-  - Ollama 接続不可
-  - 指定モデル未取得
+  - prewarm 実行時の Ollama 接続不可
+  - prewarm 実行時の指定モデル未取得
   - SQLite 初期化失敗
-  - slash command 同期失敗
 
 ## 終了時動作
 - 終了シグナルまたは例外停止要求を受けたら、新規イベント受付を止める。
@@ -221,9 +233,9 @@
 - `webhook_logging.py`: Discord webhook 通知と logging handler。
 - `services/chat_service.py`: 会話処理のユースケース。
 - `services/context_builder.py`: 会話履歴整形。
+- `services/inference_queue.py`: 推論直列化とキュー状態管理。
+- `services/presence_service.py`: presence 表示組み立て。
 - `services/admin_command_service.py`: slash command のユースケース。
-- `services/streaming_service.py`: 応答段階表示の制御。
 - `storage/settings_repository.py`: サーバー設定保存。
-- `storage/history_repository.py`: 会話履歴保存。
+- `storage/conversation_repository.py`: 会話履歴保存。
 - `storage/database.py`: SQLite 接続とスキーマ管理。
-- `monitoring/notifier.py`: 障害通知。

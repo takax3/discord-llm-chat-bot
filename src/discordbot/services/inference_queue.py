@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class InferenceQueueStatus:
+    running_count: int
+    waiting_count: int
+    total_count: int
 
 
 class InferenceQueue:
@@ -44,6 +52,20 @@ class InferenceQueue:
                 self._cancelled_tickets.remove(self._serving_ticket)
                 self._advance_serving_ticket_locked()
             self._condition.notify_all()
+
+    async def get_status(self) -> InferenceQueueStatus:
+        async with self._condition:
+            total_count = 0
+            for ticket in range(self._serving_ticket, self._next_ticket):
+                if ticket not in self._cancelled_tickets:
+                    total_count += 1
+            running_count = 1 if total_count > 0 else 0
+            waiting_count = max(total_count - running_count, 0)
+            return InferenceQueueStatus(
+                running_count=running_count,
+                waiting_count=waiting_count,
+                total_count=total_count,
+            )
 
     def _queue_ahead(self, ticket: int) -> int:
         ahead = 0

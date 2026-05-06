@@ -20,3 +20,9 @@ def test_format_message_returns_ollama_prewarm_message() -> None:
     message = format_message("ollama_prewarm_started", model="gemma4:26b")
 
     assert "gemma4:26b" in message
+
+
+def test_format_message_returns_presence_updated_message() -> None:
+    message = format_message("presence_updated", status_text="Queue: 2 | 14.2 tok/s")
+
+    assert "Queue: 2 | 14.2 tok/s" in message

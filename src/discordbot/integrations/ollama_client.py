@@ -14,6 +14,12 @@ class OllamaClientError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class OllamaChatResult:
+    content: str
+    tokens_per_second: float | None
+
+
+@dataclass(frozen=True)
 class OllamaClient:
     base_url: str
     model: str
@@ -29,14 +35,14 @@ class OllamaClient:
             timeout_seconds=config.ollama_timeout_seconds,
         )
 
-    async def generate_reply(self, messages: list[dict[str, str]]) -> str:
+    async def generate_reply(self, messages: list[dict[str, str]]) -> OllamaChatResult:
         return await asyncio.to_thread(self._request_chat_sync, messages)
 
     async def prewarm(self, prompt: str) -> None:
         messages = [{"role": "user", "content": prompt}]
         await asyncio.to_thread(self._request_chat_sync, messages)
 
-    def _request_chat_sync(self, messages: list[dict[str, str]]) -> str:
+    def _request_chat_sync(self, messages: list[dict[str, str]]) -> OllamaChatResult:
         payload = build_ollama_payload(
             model=self.model,
             messages=messages,
@@ -60,7 +66,10 @@ class OllamaClient:
         content = str(message.get("content", "")).strip()
         if not content:
             raise OllamaClientError("Ollama returned an empty response.")
-        return content
+        return OllamaChatResult(
+            content=content,
+            tokens_per_second=_extract_tokens_per_second(response_payload),
+        )
 
 
 def build_ollama_payload(
@@ -73,3 +82,16 @@ def build_ollama_payload(
         "stream": False,
         "messages": messages,
     }
+
+
+def _extract_tokens_per_second(response_payload: dict[str, object]) -> float | None:
+    eval_count = response_payload.get("eval_count")
+    eval_duration = response_payload.get("eval_duration")
+    if not isinstance(eval_count, int) or not isinstance(eval_duration, int):
+        return None
+    if eval_count <= 0 or eval_duration <= 0:
+        return None
+    duration_seconds = eval_duration / 1_000_000_000
+    if duration_seconds <= 0:
+        return None
+    return eval_count / duration_seconds

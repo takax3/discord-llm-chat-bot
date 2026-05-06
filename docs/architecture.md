@@ -38,13 +38,14 @@ src/discordbot/
 
 ## リクエスト処理フロー
 1. Discord integration がメッセージイベントを受信する。
-2. mention が含まれていない通常メッセージは無視する。
-3. `moderation_service` がサーバー設定と利用制限を確認する。
-4. `context_builder` が SQLite 履歴を集めて LLM 入力へ整形する。
-5. `chat_service` がプレースホルダ返信を作成する。
-6. `ollama_client` が Qwen モデルへ問い合わせる。
-7. `streaming_service` が段階的に返信メッセージを更新する。
-8. 完了後に入出力を SQLite へ保存する。
+2. mention もしくは Bot 返信への reply でない通常メッセージは無視する。
+3. `settings_repository` がサーバー設定と利用制限を確認する。
+4. `conversation_repository` と `context_builder` が SQLite 履歴を集めて LLM 入力へ整形する。
+5. `chat_service` が待機メッセージを作成する。
+6. `inference_queue` が推論を直列化し、キュー待ち件数を管理する。
+7. `ollama_client` が利用モデルへ問い合わせる。
+8. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
+9. 完了後に入出力を SQLite へ保存する。
 
 ## 管理コマンドフロー
 1. Discord integration が slash command を受信する。
@@ -70,19 +71,19 @@ src/discordbot/
   - 履歴件数
   - 応答文字数上限
 
-## 段階表示の方針
-- 最初に「考え中」または空のプレースホルダメッセージを返す。
-- 一定間隔または一定文字数ごとに既存メッセージを編集する。
-- Discord の編集頻度制限を避けるため、更新間隔に下限を持たせる。
+## 応答表示の方針
+- 最初に `Thinking... (Queue ahead: N)` のプレースホルダメッセージを返す。
+- キューが進んだら既存メッセージを編集して `Queue ahead` を更新する。
+- 推論完了後に最終応答でメッセージを置き換える。
 - 最終応答だけ履歴保存対象とし、途中断片は保存しない。
 
 ## 初期実装で優先するもの
 - mention 起点の 1 メッセージ 1 応答フロー
-- Ollama 接続確認
+- Bot 返信への reply による会話継続
+- Ollama prewarm
 - SQLite による履歴保存とサーバー設定保存
-- 段階表示とエラーハンドリング
-- slash command による管理操作
-- 基本ログ
+- 推論直列化と presence 表示
+- webhook 通知と graceful shutdown
 
 ## 後続候補
 - レート制限

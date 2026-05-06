@@ -11,6 +11,7 @@ from discordbot.messages import format_message
 from discordbot.services.chat_service import ChatService
 from discordbot.services.context_builder import ContextBuilder
 from discordbot.services.inference_queue import InferenceQueue
+from discordbot.services.presence_service import PresenceService
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.webhook_logging import DiscordWebhookNotifier
@@ -77,11 +78,13 @@ class DiscordBotClient(discord.Client):
         self._is_closing = False
         self._ready_notified = False
         self._inference_queue = InferenceQueue()
+        self._presence_service = PresenceService()
 
     async def on_ready(self) -> None:
         if self.user is None:
             return
         self._logger.info(format_message("discord_ready", user=str(self.user)))
+        await self._sync_presence()
         if not self._ready_notified:
             await self._webhook_notifier.send_ready(
                 version=self._app_version,
@@ -178,6 +181,7 @@ class DiscordBotClient(discord.Client):
             return
 
         ticket, queue_ahead = await self._inference_queue.reserve()
+        await self._sync_presence_from_queue()
         turn_started = False
         try:
             sent_message = await message.reply(
@@ -199,7 +203,9 @@ class DiscordBotClient(discord.Client):
                 user_message=user_message,
             )
             try:
-                reply = await self._ollama_client.generate_reply(ollama_messages)
+                result = await self._ollama_client.generate_reply(ollama_messages)
+                reply = result.content
+                self._presence_service.set_tokens_per_second(result.tokens_per_second)
             except OllamaClientError:
                 self._logger.warning(
                     format_message(
@@ -213,6 +219,7 @@ class DiscordBotClient(discord.Client):
                 await self._inference_queue.finish_turn(ticket)
             else:
                 await self._inference_queue.cancel(ticket)
+            await self._sync_presence_from_queue()
         reply = self._chat_service.normalize_reply(reply)
         await sent_message.edit(content=reply)
         self._save_conversation_message(
@@ -285,3 +292,24 @@ class DiscordBotClient(discord.Client):
             except discord.DiscordException:
                 self._logger.exception(format_message("presence_offline_failed"))
         await super().close()
+
+    async def _sync_presence_from_queue(self) -> None:
+        status = await self._inference_queue.get_status()
+        self._presence_service.set_queue_count(status.waiting_count)
+        await self._sync_presence()
+
+    async def _sync_presence(self) -> None:
+        if self.user is None or self.is_closed():
+            return
+        status_text = self._presence_service.build_status_text()
+        try:
+            await self.change_presence(
+                status=discord.Status.online,
+                activity=self._presence_service.build_activity(),
+            )
+            self._logger.info(
+                format_message("presence_updated", status_text=status_text),
+                extra={"skip_webhook": True},
+            )
+        except discord.DiscordException:
+            self._logger.exception(format_message("presence_update_failed"))
