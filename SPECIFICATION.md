@@ -105,7 +105,8 @@
 
 ## 設定
 - `DISCORD_BOT_TOKEN`: Discord bot token。必須。
-- `OLLAMA_BASE_URL`: Ollama API のベース URL。既定値は `http://127.0.0.1:11434`。
+- `DISCORD_MENTION_RESPONSE`: mention 受信時に返す固定応答文。最小疎通実装で使用する。
+- `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
 - `OLLAMA_MODEL`: 利用する Qwen モデル名。例: `qwen3:8b`。
 - `SYSTEM_PROMPT`: 既定のシステムプロンプト。
 - `DEFAULT_ALLOWED_CHANNEL_IDS`: サーバー設定未登録時に使う許可チャンネル ID 一覧。

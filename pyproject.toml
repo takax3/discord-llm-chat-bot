@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Ollama と Qwen を利用する Discord 向け LLM チャットボットです。"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "discord.py>=2.5.0,<3.0.0",
+]
 
 [project.optional-dependencies]
 dev = [

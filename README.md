@@ -4,10 +4,11 @@ Discord 上で動作する、Ollama + Qwen ベースのローカル LLM チャ�
 Discord との接続、Ollama への推論依頼、会話コンテキスト構築、監視や graceful shutdown を責務分離して実装する前提で設計を進めています。
 
 ## 現在の状態
-- このリポジトリは設計開始段階です。
+- このリポジトリは最小疎通実装まで完了しています。
 - 利用者向けの概要はこの README に記載します。
 - 開発者向けの正本仕様は `SPECIFICATION.md` に記載します。
 - モジュール分割案は `docs/architecture.md` に記載します。
+- 現在は Discord に接続し、Bot への mention に固定文で応答できます。
 
 ## 目指す機能
 - Discord で Bot が mention されたメッセージを受け取って Qwen モデルへ渡す
@@ -26,6 +27,7 @@ Discord との接続、Ollama への推論依頼、会話コンテキスト構�
 
 ## Docker での起動
 1. `.env.example` を `.env` としてコピーし、`DISCORD_BOT_TOKEN` など必要な値を設定します。
+   - `DISCORD_MENTION_RESPONSE` を変えると、mention への固定応答文を変更できます。
 2. `docker compose up --build -d` を実行します。
 3. 初回は Ollama コンテナ内でモデルを取得します。
 

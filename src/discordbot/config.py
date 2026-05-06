@@ -1,17 +1,32 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 
-from discordbot.constants import DEFAULT_LOG_LEVEL
+from discordbot.constants import DEFAULT_LOG_LEVEL, DEFAULT_MENTION_RESPONSE
 
 
 @dataclass(frozen=True)
 class AppConfig:
+    discord_bot_token: str
+    mention_response: str
     log_level: str
 
 
 def load_config() -> AppConfig:
+    discord_bot_token = os.getenv("DISCORD_BOT_TOKEN", "").strip()
+    if not discord_bot_token:
+        raise ValueError("DISCORD_BOT_TOKEN is required.")
+
+    mention_response = os.getenv(
+        "DISCORD_MENTION_RESPONSE",
+        DEFAULT_MENTION_RESPONSE,
+    ).strip()
+    if not mention_response:
+        mention_response = DEFAULT_MENTION_RESPONSE
+
     return AppConfig(
+        discord_bot_token=discord_bot_token,
+        mention_response=mention_response,
         log_level=os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).upper(),
     )
