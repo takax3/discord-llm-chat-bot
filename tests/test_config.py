@@ -46,7 +46,7 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     assert config.discord_webhook_notify_logs_min_level == "WARNING"
     assert config.discord_webhook_notify_shutdown is False
     assert config.discord_webhook_notify_startup is False
-    assert config.discord_webhook_url == "https://example.com/webhook"
+    assert config.discord_webhook_urls == ("https://example.com/webhook",)
     assert config.mention_response == DEFAULT_MENTION_RESPONSE
     assert config.default_allowed_channel_ids == (100, 200)
     assert config.log_level == "DEBUG"

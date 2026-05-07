@@ -81,14 +81,14 @@ def test_should_send_webhook_uses_minimum_level_for_regular_logs() -> None:
 def test_send_startup_started_posts_embed_payload(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
     notifier = DiscordWebhookNotifier(
-        webhook_url="https://example.com/webhook",
+        webhook_urls=("https://example.com/webhook",),
         minimum_level_name="ERROR",
         notify_startup=True,
         notify_shutdown=True,
         notify_logs=False,
     )
 
-    def fake_post(self, payload: dict[str, object]) -> None:
+    def fake_post(self, url: str, payload: dict[str, object]) -> None:
         sent.append(payload)
 
     monkeypatch.setattr(DiscordWebhookNotifier, "_post_payload", fake_post)
@@ -103,14 +103,14 @@ def test_send_startup_started_posts_embed_payload(monkeypatch) -> None:
 def test_send_ready_posts_embed_payload(monkeypatch) -> None:
     sent: list[dict[str, object]] = []
     notifier = DiscordWebhookNotifier(
-        webhook_url="https://example.com/webhook",
+        webhook_urls=("https://example.com/webhook",),
         minimum_level_name="ERROR",
         notify_startup=True,
         notify_shutdown=True,
         notify_logs=False,
     )
 
-    def fake_post(self, payload: dict[str, object]) -> None:
+    def fake_post(self, url: str, payload: dict[str, object]) -> None:
         sent.append(payload)
 
     monkeypatch.setattr(DiscordWebhookNotifier, "_post_payload", fake_post)
@@ -126,7 +126,7 @@ def test_send_ready_posts_embed_payload(monkeypatch) -> None:
 
 def test_build_record_payload_uses_embed_for_regular_logs() -> None:
     notifier = DiscordWebhookNotifier(
-        webhook_url="https://example.com/webhook",
+        webhook_urls=("https://example.com/webhook",),
         minimum_level_name="ERROR",
         notify_startup=True,
         notify_shutdown=True,
@@ -143,7 +143,7 @@ def test_build_record_payload_uses_embed_for_regular_logs() -> None:
 
 def test_post_payload_logs_http_status_details(monkeypatch, caplog) -> None:
     notifier = DiscordWebhookNotifier(
-        webhook_url="https://example.com/webhook",
+        webhook_urls=("https://example.com/webhook",),
         minimum_level_name="ERROR",
         notify_startup=True,
         notify_shutdown=True,
@@ -167,7 +167,7 @@ def test_post_payload_logs_http_status_details(monkeypatch, caplog) -> None:
     monkeypatch.setattr("discordbot.webhook_logging.request.urlopen", fake_urlopen)
 
     with caplog.at_level(logging.WARNING):
-        notifier._post_payload({"embeds": [{"title": "hello"}]})
+        notifier._post_payload("https://example.com/webhook", {"embeds": [{"title": "hello"}]})
 
     assert "status=403" in caplog.text
     assert "Forbidden" in caplog.text
@@ -176,7 +176,7 @@ def test_post_payload_logs_http_status_details(monkeypatch, caplog) -> None:
 
 def test_post_payload_logs_urlerror_reason(monkeypatch, caplog) -> None:
     notifier = DiscordWebhookNotifier(
-        webhook_url="https://example.com/webhook",
+        webhook_urls=("https://example.com/webhook",),
         minimum_level_name="ERROR",
         notify_startup=True,
         notify_shutdown=True,
@@ -189,6 +189,6 @@ def test_post_payload_logs_urlerror_reason(monkeypatch, caplog) -> None:
     monkeypatch.setattr("discordbot.webhook_logging.request.urlopen", fake_urlopen)
 
     with caplog.at_level(logging.WARNING):
-        notifier._post_payload({"embeds": [{"title": "hello"}]})
+        notifier._post_payload("https://example.com/webhook", {"embeds": [{"title": "hello"}]})
 
     assert "reason=timeout" in caplog.text

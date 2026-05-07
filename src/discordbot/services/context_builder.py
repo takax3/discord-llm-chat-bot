@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from discordbot.domain.conversation_message import ConversationMessage
 from discordbot.domain.search_result import SearchResult
 
@@ -44,6 +46,8 @@ class ContextBuilder:
         return messages
 
     def _build_system_prompt(self) -> str:
+        now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M JST")
+        datetime_instruction = f"The current date and time is {now}."
         response_style_instruction = (
             "If you do not know something, say clearly that you do not know instead of guessing. "
             "Do not invent facts that are not supported by the conversation context. "
@@ -57,6 +61,7 @@ class ContextBuilder:
         )
         return (
             f"{self._system_prompt}\n\n"
+            f"{datetime_instruction}\n"
             f"{response_style_instruction}\n"
             f"{response_limit_instruction}"
         )

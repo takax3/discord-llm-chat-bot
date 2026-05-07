@@ -32,7 +32,7 @@ class AppConfig:
     discord_webhook_notify_logs_min_level: str
     discord_webhook_notify_shutdown: bool
     discord_webhook_notify_startup: bool
-    discord_webhook_url: str
+    discord_webhook_urls: tuple[str, ...]
     mention_response: str
     default_allowed_channel_ids: tuple[int, ...]
     log_level: str
@@ -54,6 +54,18 @@ class AppConfig:
     web_search_country: str
     web_search_language: str
     brave_search_api_key: str
+
+
+def _parse_webhook_urls(raw_value: str) -> tuple[str, ...]:
+    stripped_value = raw_value.strip()
+    if not stripped_value:
+        return ()
+    urls: list[str] = []
+    for part in stripped_value.split(","):
+        normalized = part.strip()
+        if normalized:
+            urls.append(normalized)
+    return tuple(urls)
 
 
 def _parse_channel_ids(raw_value: str) -> tuple[int, ...]:
@@ -85,7 +97,7 @@ def load_config() -> AppConfig:
     discord_bot_token = os.getenv("DISCORD_BOT_TOKEN", "").strip()
     if not discord_bot_token:
         raise ValueError("DISCORD_BOT_TOKEN is required.")
-    discord_webhook_url = os.getenv("DISCORD_WEBHOOK_URL", "").strip()
+    discord_webhook_urls = _parse_webhook_urls(os.getenv("DISCORD_WEBHOOK_URL", ""))
 
     mention_response = os.getenv(
         "DISCORD_MENTION_RESPONSE",
@@ -186,7 +198,7 @@ def load_config() -> AppConfig:
             os.getenv("DISCORD_WEBHOOK_NOTIFY_STARTUP"),
             DEFAULT_WEBHOOK_NOTIFY_STARTUP,
         ),
-        discord_webhook_url=discord_webhook_url,
+        discord_webhook_urls=discord_webhook_urls,
         mention_response=mention_response,
         default_allowed_channel_ids=default_allowed_channel_ids,
         log_level=os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).upper(),

@@ -31,7 +31,7 @@ def _configure_logging(log_level: str) -> logging.Logger:
 async def _run_bot(config: AppConfig, logger: logging.Logger) -> None:
     database_connection = initialize_database(config.sqlite_path)
     webhook_notifier = DiscordWebhookNotifier(
-        webhook_url=config.discord_webhook_url,
+        webhook_urls=config.discord_webhook_urls,
         minimum_level_name=config.discord_webhook_notify_logs_min_level,
         notify_startup=config.discord_webhook_notify_startup,
         notify_shutdown=config.discord_webhook_notify_shutdown,

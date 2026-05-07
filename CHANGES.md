@@ -19,3 +19,6 @@
 - Discord presence に待機キュー数と直近のトークンスピードを表示するようにした
 - vision 対応モデルに対して Discord 添付画像 1 枚を推論へ渡せるようにした
 - Brave Search API を使った条件付き Web 検索補強を追加した
+- システムプロンプトへ現在日時（JST）を自動注入し、LLM が正確な日付を返せるようにした
+- Discord Webhook URL のカンマ区切り複数指定に対応し、並列 POST するようにした
+- Webhook 通知の embed footer に送信日時を表示するようにした

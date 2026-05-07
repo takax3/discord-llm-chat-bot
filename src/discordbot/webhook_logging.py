@@ -49,14 +49,14 @@ def should_send_webhook(
 
 @dataclass(frozen=True)
 class DiscordWebhookNotifier:
-    webhook_url: str
+    webhook_urls: tuple[str, ...]
     minimum_level_name: str
     notify_startup: bool
     notify_shutdown: bool
     notify_logs: bool
 
     async def send_record(self, record: logging.LogRecord) -> None:
-        if not self.webhook_url:
+        if not self.webhook_urls:
             return
         if not should_send_webhook(
             record,
@@ -68,10 +68,10 @@ class DiscordWebhookNotifier:
             return
 
         payload = self._build_record_payload(record)
-        await asyncio.to_thread(self._post_payload, payload)
+        await self._post_to_all(payload)
 
     async def send_startup(self, *, version: str, guild_count: int) -> None:
-        if not self.webhook_url or not self.notify_startup:
+        if not self.webhook_urls or not self.notify_startup:
             return
         payload = self._build_embed_payload(
             title="Bot Started",
@@ -82,10 +82,10 @@ class DiscordWebhookNotifier:
                 {"name": "Guilds", "value": str(guild_count), "inline": True},
             ],
         )
-        await asyncio.to_thread(self._post_payload, payload)
+        await self._post_to_all(payload)
 
     async def send_startup_started(self, *, version: str, model: str) -> None:
-        if not self.webhook_url or not self.notify_startup:
+        if not self.webhook_urls or not self.notify_startup:
             return
         payload = self._build_embed_payload(
             title="Bot Startup Started",
@@ -96,10 +96,10 @@ class DiscordWebhookNotifier:
                 {"name": "Model", "value": model, "inline": True},
             ],
         )
-        await asyncio.to_thread(self._post_payload, payload)
+        await self._post_to_all(payload)
 
     async def send_ready(self, *, version: str, guild_count: int, model: str) -> None:
-        if not self.webhook_url or not self.notify_startup:
+        if not self.webhook_urls or not self.notify_startup:
             return
         payload = self._build_embed_payload(
             title="Bot Ready",
@@ -111,10 +111,10 @@ class DiscordWebhookNotifier:
                 {"name": "Guilds", "value": str(guild_count), "inline": True},
             ],
         )
-        await asyncio.to_thread(self._post_payload, payload)
+        await self._post_to_all(payload)
 
     async def send_shutdown(self, *, signal_name: str, guild_count: int) -> None:
-        if not self.webhook_url or not self.notify_shutdown:
+        if not self.webhook_urls or not self.notify_shutdown:
             return
         payload = self._build_embed_payload(
             title="Bot Shutdown Started",
@@ -125,7 +125,7 @@ class DiscordWebhookNotifier:
                 {"name": "Guilds", "value": str(guild_count), "inline": True},
             ],
         )
-        await asyncio.to_thread(self._post_payload, payload)
+        await self._post_to_all(payload)
 
     async def close(self) -> None:
         return None
@@ -169,6 +169,11 @@ class DiscordWebhookNotifier:
         fields: list[dict[str, object]],
         record: logging.LogRecord | None = None,
     ) -> dict[str, object]:
+        if record is not None:
+            ts = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        else:
+            ts = datetime.now(timezone.utc)
+        footer_text = ts.strftime("%Y-%m-%d %H:%M:%S UTC")
         embed: dict[str, object] = {
             "title": title,
             "description": _truncate_text(description, WEBHOOK_DESCRIPTION_LIMIT),
@@ -181,15 +186,21 @@ class DiscordWebhookNotifier:
                 }
                 for field in fields
             ],
+            "footer": {"text": footer_text},
         }
         if record is not None:
             embed["timestamp"] = _format_timestamp(record.created)
         return {"embeds": [embed]}
 
-    def _post_payload(self, payload: dict[str, object]) -> None:
+    async def _post_to_all(self, payload: dict[str, object]) -> None:
+        await asyncio.gather(
+            *[asyncio.to_thread(self._post_payload, url, payload) for url in self.webhook_urls]
+        )
+
+    def _post_payload(self, url: str, payload: dict[str, object]) -> None:
         raw_payload = json.dumps(payload).encode("utf-8")
         webhook_request = request.Request(
-            self.webhook_url,
+            url,
             data=raw_payload,
             headers={
                 "Accept": "application/json",

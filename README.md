@@ -1,75 +1,64 @@
 # Discord LLM Chat Bot
 
 Discord 上で動作する、Ollama ベースのローカル LLM チャットボットです。  
-現在は `Qwen3.x` や `Gemma 4` などの Ollama モデルを切り替えて利用でき、Discord との接続、Ollama への推論依頼、会話コンテキスト構築、監視、graceful shutdown を責務分離して実装しています。
+`Qwen3.x` や `Gemma 4` などの Ollama モデルを切り替えて利用でき、会話コンテキスト管理・監視・graceful shutdown を備えます。
 
-## 現在の状態
-- 利用者向けの概要はこの README に記載します。
-- 開発者向けの正本仕様は `SPECIFICATION.md` に記載します。
-- モジュール分割案は `docs/architecture.md` に記載します。
-- 現在は Discord に接続し、Bot への mention 本文だけを Ollama に渡して応答できます。
-- Bot の返信に対する reply では、保存済みの返信チェーンをたどって会話コンテキストを引き継げます。
-- 画像が添付されている場合は、vision 対応モデルに対して現在メッセージの画像 1 枚を推論に含められます。
-- 本文なしの画像だけのメッセージでは、画像内容の推定を依頼する既定プロンプトを内部的に補います。
-- Web 検索が有効な場合は、まずモデルが検索要否を判定し、必要なときだけ Brave Search API で一般 Web を検索します。
-- Web 検索を使った回答では、本文末尾に参考 URL を最大 3 件表示します。
-- Ollama 推論中は先に `Thinking... (Queue ahead: N)` を返し、完了後にそのメッセージを更新します。
-- 推論リクエストは bot 内で直列化し、前の推論が終わるまで次の推論は待機します。
-- サーバー設定が未登録のときは環境変数の既定値を使い、登録済みサーバーでは SQLite 設定を参照します。
-- 起動時には SQLite 初期化、Ollama prewarm、Discord 接続を順番に行います。
-- Discord の presence には現在の待機キュー数と直近の推論速度を表示します。
-- 終了処理開始時は Bot の表示を先にオフラインへ切り替えます。
-- Discord webhook による起動開始通知、ready 通知、終了通知、ログ通知を任意で有効化できます。
-- Docker Compose では `discordbot`、`ollama`、`ollama-init` の 3 サービスで起動します。
+- 開発者向けの正本仕様は `SPECIFICATION.md` を参照してください。
+- モジュール設計の概要は `docs/architecture.md` を参照してください。
 
-## 主な機能
+## 機能
+
 - mention を起点にした Ollama 応答
-- Bot 返信への reply での会話継続
-- vision 対応モデルへの画像添付入力
-- 条件付き Web 検索による回答補強
-- SQLite への会話履歴保存
-- サーバー単位の有効 / 無効、許可チャンネル設定
-- 起動前 prewarm
-- webhook 通知
-- GPU 前提の Docker Compose 構成
+- Bot 返信への reply での会話継続（保存済みチェーンを会話コンテキストとして引き継ぎ）
+- vision 対応モデルへの画像添付入力（本文なし画像は既定プロンプトで補完）
+- 条件付き Web 検索による回答補強（Brave Search API、回答末尾に参考 URL 最大 3 件表示）
+- システムプロンプトへの現在日時（JST）自動注入
+- 推論直列化（前の推論完了まで次を待機）と presence へのキュー数・推論速度表示
+- SQLite への会話履歴保存とサーバー単位設定管理
+- Discord webhook 通知（起動開始・ready・終了・ログ）、複数 URL のカンマ区切り指定に対応
+- 起動前 Ollama prewarm
+- GPU 前提の Docker Compose 構成（NVIDIA device reservation）
+- graceful shutdown（シグナル受信時に先にオフライン表示へ切り替え）
 
-## 目指す機能
-- Discord で Bot が mention されたメッセージを受け取って Ollama モデルへ渡す
-- より洗練されたストリーミング表示や応答分割送信
-- サーバーごとにチャンネル制限、システムプロンプト、応答長などを管理する
-- 管理者向け slash command で設定を変更する
-- 起動時検証、障害ログ、通知、graceful shutdown を備える
+## 未実装
 
-## 想定技術
-- Python
-- Discord API
-- Ollama
-- Ollama 互換のローカルモデル
-- 任意のローカル永続化層
+- 管理者向け slash command によるサーバー設定変更
+- ストリーミング表示・応答分割送信
+- レート制限・再試行ポリシー
+- 履歴要約
 
 ## Docker での起動
-1. `.env.example` を `.env` としてコピーし、`DISCORD_BOT_TOKEN` など必要な値を設定します。
-   - `DISCORD_MENTION_RESPONSE` は本文が空のときの案内文として使われます。
-   - モデル設定は `OLLAMA_MODEL` で切り替えます。
-   - 画像入力を使う場合は `VISION_ENABLED=true` のままにし、vision 対応モデルを選びます。
-   - Web 検索を使う場合は `WEB_SEARCH_ENABLED=true` と `BRAVE_SEARCH_API_KEY` を設定します。
+
+1. `.env.example` を `.env` としてコピーし、必要な値を設定します。
+   - `DISCORD_BOT_TOKEN`: 必須。
+   - `OLLAMA_MODEL`: 利用するモデル名（例: `gemma4:26b`、`qwen3.6:27b`）。
+   - `SYSTEM_PROMPT`: モデルへ渡す基本システムプロンプト。
+   - `VISION_ENABLED=true` にすると vision 対応モデルで画像添付入力が使えます。
+   - `WEB_SEARCH_ENABLED=true` にすると Brave Search API による Web 検索補強が有効になります。合わせて `BRAVE_SEARCH_API_KEY` も設定してください。
 2. `docker compose up --build -d` を実行します。
-3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します。
-   - 初回はモデル取得に時間がかかることがあります。
-   - 状況確認は `docker compose logs -f ollama-init` を使います。
-4. 起動時は `Ollama prewarm` が完了してから Discord に接続します。
-   - 状況確認は `docker compose logs -f discordbot` を使います。
-5. GPU 推論を使う前提で、`ollama` サービスには NVIDIA GPU の予約を明示しています。
-   - Docker Desktop / NVIDIA Container Toolkit 側で GPU 利用が有効になっている必要があります。
-   - `docker compose exec ollama nvidia-smi` で GPU が見えるか確認できます。
-6. Webhook 通知を使う場合は、必要に応じて `.env` に次を設定します。
-   - `DISCORD_WEBHOOK_URL`
-   - `DISCORD_WEBHOOK_NOTIFY_STARTUP`
-   - `DISCORD_WEBHOOK_NOTIFY_SHUTDOWN`
-   - `DISCORD_WEBHOOK_NOTIFY_LOGS`
+3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します（時間がかかる場合があります）。
+   - 進捗確認: `docker compose logs -f ollama-init`
+4. Ollama prewarm 完了後に Discord 接続します。
+   - 進捗確認: `docker compose logs -f discordbot`
+5. GPU 推論前提のため、`ollama` サービスには NVIDIA GPU の予約を明示しています。Docker Desktop / NVIDIA Container Toolkit で GPU 利用が有効になっている必要があります。
+   - 確認コマンド: `docker compose exec ollama nvidia-smi`
+6. Webhook 通知を使う場合は `.env` で次を設定します。
+   - `DISCORD_WEBHOOK_URL`: 通知先 webhook URL。複数指定はカンマ区切り。
+   - `DISCORD_WEBHOOK_NOTIFY_STARTUP` / `DISCORD_WEBHOOK_NOTIFY_SHUTDOWN` / `DISCORD_WEBHOOK_NOTIFY_LOGS`
    - `DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL`
 7. モデル別の推奨設定例は次を参照してください。
    - `docs/ollama-gemma4-26b-rtx3090.md`
    - `docs/ollama-qwen3.6-rtx3090.md`
 
-`docker-compose.yml` は `discordbot`、`ollama`、`ollama-init` の 3 サービス構成です。Bot からは `http://ollama:11434` で Ollama に接続します。会話履歴と設定 DB は Docker volume `discordbot-data` に保存され、Ollama のモデルは `ollama-data` に保存されます。
+`docker-compose.yml` は `discordbot`・`ollama`・`ollama-init` の 3 サービス構成です。Bot からは `http://ollama:11434` で Ollama に接続します。会話履歴と設定 DB は Docker volume `discordbot-data` に、Ollama のモデルは `ollama-data` に保存されます。
+
+## 技術スタック
+
+| 用途 | 採用技術 |
+|---|---|
+| 言語 | Python 3.14 |
+| Discord 連携 | discord.py |
+| LLM 推論 | Ollama（ローカル HTTP API）|
+| Web 検索 | Brave Search API |
+| 永続化 | SQLite |
+| コンテナ | Docker Compose（NVIDIA GPU 対応）|
