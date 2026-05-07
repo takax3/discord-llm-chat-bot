@@ -21,6 +21,27 @@ def test_build_ollama_payload_uses_single_turn_messages() -> None:
     ]
 
 
+def test_build_ollama_payload_keeps_images_when_present() -> None:
+    payload = build_ollama_payload(
+        model="gemma4:26b",
+        messages=[
+            {
+                "role": "user",
+                "content": "what is in this image?",
+                "images": ["base64-image-data"],
+            }
+        ],
+    )
+
+    assert payload["messages"] == [
+        {
+            "role": "user",
+            "content": "what is in this image?",
+            "images": ["base64-image-data"],
+        }
+    ]
+
+
 def test_prewarm_uses_single_user_prompt(monkeypatch) -> None:
     captured: dict[str, object] = {}
     client = OllamaClient(

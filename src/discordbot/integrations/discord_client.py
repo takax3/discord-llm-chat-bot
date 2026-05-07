@@ -10,6 +10,7 @@ from discordbot.integrations.ollama_client import OllamaClient, OllamaClientErro
 from discordbot.messages import format_message
 from discordbot.services.chat_service import ChatService
 from discordbot.services.context_builder import ContextBuilder
+from discordbot.services.image_preprocessor import ImagePreprocessor, ImagePreprocessorError
 from discordbot.services.inference_queue import InferenceQueue
 from discordbot.services.presence_service import PresenceService
 from discordbot.storage.conversation_repository import ConversationRepository
@@ -34,6 +35,7 @@ def build_discord_client(
         chat_service=ChatService(
             mention_response=config.mention_response,
             max_response_chars=config.max_response_chars,
+            vision_image_only_prompt=config.vision_image_only_prompt,
         ),
         intents=intents,
         logger=logger,
@@ -79,6 +81,9 @@ class DiscordBotClient(discord.Client):
         self._ready_notified = False
         self._inference_queue = InferenceQueue()
         self._presence_service = PresenceService()
+        self._image_preprocessor = ImagePreprocessor(
+            max_pixels=config.vision_max_pixels,
+        )
 
     async def on_ready(self) -> None:
         if self.user is None:
@@ -148,6 +153,9 @@ class DiscordBotClient(discord.Client):
             message_content=message.content,
             bot_user_id=self.user.id,
         )
+        user_images = await self._extract_user_images(message)
+        if not user_message and user_images:
+            user_message = self._chat_service.build_image_only_prompt()
         self._save_conversation_message(
             ConversationMessage(
                 discord_message_id=message.id,
@@ -201,6 +209,7 @@ class DiscordBotClient(discord.Client):
             ollama_messages = self._context_builder.build_messages(
                 prior_messages=prior_messages,
                 user_message=user_message,
+                user_images=user_images,
             )
             try:
                 result = await self._ollama_client.generate_reply(ollama_messages)
@@ -245,6 +254,23 @@ class DiscordBotClient(discord.Client):
         if stored_message is None:
             return False
         return stored_message.role == "assistant"
+
+    async def _extract_user_images(self, message: discord.Message) -> list[str]:
+        if not self._config.vision_enabled:
+            return []
+        for attachment in message.attachments:
+            if not self._image_preprocessor.is_supported_attachment(
+                content_type=attachment.content_type,
+                filename=attachment.filename,
+            ):
+                continue
+            try:
+                raw_bytes = await attachment.read(use_cached=True)
+                return [self._image_preprocessor.encode_for_ollama(raw_bytes)]
+            except (discord.DiscordException, ImagePreprocessorError):
+                self._logger.exception("Failed to process image attachment.")
+                return []
+        return []
 
     def _build_prior_messages(self, message: discord.Message) -> list[ConversationMessage]:
         if message.reference is None or message.reference.message_id is None:

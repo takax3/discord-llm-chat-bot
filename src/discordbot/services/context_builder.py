@@ -13,8 +13,9 @@ class ContextBuilder:
         *,
         prior_messages: list[ConversationMessage],
         user_message: str,
-    ) -> list[dict[str, str]]:
-        messages: list[dict[str, str]] = [
+        user_images: list[str] | None = None,
+    ) -> list[dict[str, object]]:
+        messages: list[dict[str, object]] = [
             {
                 "role": "system",
                 "content": self._build_system_prompt(),
@@ -27,7 +28,10 @@ class ContextBuilder:
                     "content": message.content,
                 }
             )
-        messages.append({"role": "user", "content": user_message})
+        user_entry: dict[str, object] = {"role": "user", "content": user_message}
+        if user_images:
+            user_entry["images"] = user_images
+        messages.append(user_entry)
         return messages
 
     def _build_system_prompt(self) -> str:

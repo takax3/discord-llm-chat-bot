@@ -51,3 +51,22 @@ def test_build_messages_includes_prior_chain_and_current_user_message() -> None:
         {"role": "assistant", "content": "hi"},
         {"role": "user", "content": "follow up"},
     ]
+
+
+def test_build_messages_includes_images_for_current_user_message() -> None:
+    builder = ContextBuilder(
+        system_prompt="system",
+        max_response_chars=DEFAULT_MAX_RESPONSE_CHARS,
+    )
+
+    messages = builder.build_messages(
+        prior_messages=[],
+        user_message="what is in this image?",
+        user_images=["base64-image-data"],
+    )
+
+    assert messages[-1] == {
+        "role": "user",
+        "content": "what is in this image?",
+        "images": ["base64-image-data"],
+    }

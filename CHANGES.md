@@ -17,3 +17,4 @@
 - Ollama prewarm を起動処理に追加し、起動開始通知と ready 通知を分けて送るようにした
 - Gemma 4 26B と Qwen3.6 の RTX 3090 向け設定ガイドを追加した
 - Discord presence に待機キュー数と直近のトークンスピードを表示するようにした
+- vision 対応モデルに対して Discord 添付画像 1 枚を推論へ渡せるようにした

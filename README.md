@@ -9,6 +9,8 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 - モジュール分割案は `docs/architecture.md` に記載します。
 - 現在は Discord に接続し、Bot への mention 本文だけを Ollama に渡して応答できます。
 - Bot の返信に対する reply では、保存済みの返信チェーンをたどって会話コンテキストを引き継げます。
+- 画像が添付されている場合は、vision 対応モデルに対して現在メッセージの画像 1 枚を推論に含められます。
+- 本文なしの画像だけのメッセージでは、画像内容の推定を依頼する既定プロンプトを内部的に補います。
 - Ollama 推論中は先に `Thinking... (Queue ahead: N)` を返し、完了後にそのメッセージを更新します。
 - 推論リクエストは bot 内で直列化し、前の推論が終わるまで次の推論は待機します。
 - サーバー設定が未登録のときは環境変数の既定値を使い、登録済みサーバーでは SQLite 設定を参照します。
@@ -21,6 +23,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 ## 主な機能
 - mention を起点にした Ollama 応答
 - Bot 返信への reply での会話継続
+- vision 対応モデルへの画像添付入力
 - SQLite への会話履歴保存
 - サーバー単位の有効 / 無効、許可チャンネル設定
 - 起動前 prewarm
@@ -45,6 +48,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 1. `.env.example` を `.env` としてコピーし、`DISCORD_BOT_TOKEN` など必要な値を設定します。
    - `DISCORD_MENTION_RESPONSE` は本文が空のときの案内文として使われます。
    - モデル設定は `OLLAMA_MODEL` で切り替えます。
+   - 画像入力を使う場合は `VISION_ENABLED=true` のままにし、vision 対応モデルを選びます。
 2. `docker compose up --build -d` を実行します。
 3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します。
    - 初回はモデル取得に時間がかかることがあります。

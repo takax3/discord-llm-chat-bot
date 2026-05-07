@@ -10,6 +10,9 @@ from discordbot.constants import (
     DEFAULT_MENTION_RESPONSE,
     DEFAULT_OLLAMA_PREWARM_ENABLED,
     DEFAULT_OLLAMA_PREWARM_PROMPT,
+    DEFAULT_VISION_ENABLED,
+    DEFAULT_VISION_IMAGE_ONLY_PROMPT,
+    DEFAULT_VISION_MAX_PIXELS,
     DEFAULT_WEBHOOK_MIN_LEVEL_NAME,
     DEFAULT_WEBHOOK_NOTIFY_LOGS,
     DEFAULT_WEBHOOK_NOTIFY_SHUTDOWN,
@@ -37,6 +40,9 @@ class AppConfig:
     ollama_timeout_seconds: int
     sqlite_path: Path
     system_prompt: str
+    vision_enabled: bool
+    vision_image_only_prompt: str
+    vision_max_pixels: int
 
 
 def _parse_channel_ids(raw_value: str) -> tuple[int, ...]:
@@ -105,6 +111,21 @@ def load_config() -> AppConfig:
     system_prompt = os.getenv("SYSTEM_PROMPT", "").strip()
     if not system_prompt:
         raise ValueError("SYSTEM_PROMPT is required.")
+    vision_enabled = _parse_bool_env(
+        os.getenv("VISION_ENABLED"),
+        DEFAULT_VISION_ENABLED,
+    )
+    vision_image_only_prompt = os.getenv(
+        "VISION_IMAGE_ONLY_PROMPT",
+        DEFAULT_VISION_IMAGE_ONLY_PROMPT,
+    ).strip()
+    if not vision_image_only_prompt:
+        vision_image_only_prompt = DEFAULT_VISION_IMAGE_ONLY_PROMPT
+    vision_max_pixels = int(
+        os.getenv("VISION_MAX_PIXELS", str(DEFAULT_VISION_MAX_PIXELS))
+    )
+    if vision_max_pixels <= 0:
+        raise ValueError("VISION_MAX_PIXELS must be greater than 0.")
     ollama_timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
     sqlite_path = Path(os.getenv("SQLITE_PATH", "./data/discordbot.db")).expanduser()
 
@@ -139,4 +160,7 @@ def load_config() -> AppConfig:
         ollama_timeout_seconds=ollama_timeout_seconds,
         sqlite_path=sqlite_path,
         system_prompt=system_prompt,
+        vision_enabled=vision_enabled,
+        vision_image_only_prompt=vision_image_only_prompt,
+        vision_max_pixels=vision_max_pixels,
     )

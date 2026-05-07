@@ -18,6 +18,7 @@ def remove_bot_mention(message_content: str, bot_user_id: int) -> str:
 class ChatService:
     mention_response: str
     max_response_chars: int
+    vision_image_only_prompt: str
 
     def is_guild_message_allowed(
         self,
@@ -50,6 +51,9 @@ class ChatService:
 
     def build_empty_message_reply(self) -> str:
         return self.mention_response
+
+    def build_image_only_prompt(self) -> str:
+        return self.vision_image_only_prompt
 
     def build_thinking_reply(self, queue_ahead: int) -> str:
         return format_message("thinking", queue_ahead=queue_ahead)

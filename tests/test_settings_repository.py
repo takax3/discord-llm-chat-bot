@@ -43,6 +43,9 @@ def test_get_guild_settings_returns_defaults_when_row_is_missing() -> None:
             ollama_timeout_seconds=60,
             sqlite_path=Path("data/test.db"),
             system_prompt="system prompt",
+            vision_enabled=True,
+            vision_image_only_prompt="describe image",
+            vision_max_pixels=2073600,
         ),
     )
 
@@ -96,6 +99,9 @@ def test_get_guild_settings_returns_persisted_values() -> None:
             ollama_timeout_seconds=60,
             sqlite_path=Path("data/test.db"),
             system_prompt="system prompt",
+            vision_enabled=True,
+            vision_image_only_prompt="describe image",
+            vision_max_pixels=2073600,
         ),
     )
 

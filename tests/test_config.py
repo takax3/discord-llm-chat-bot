@@ -24,6 +24,9 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3:8b")
     monkeypatch.setenv("OLLAMA_PREWARM_ENABLED", "false")
     monkeypatch.setenv("OLLAMA_PREWARM_PROMPT", "warm up")
+    monkeypatch.setenv("VISION_ENABLED", "false")
+    monkeypatch.setenv("VISION_IMAGE_ONLY_PROMPT", "describe image")
+    monkeypatch.setenv("VISION_MAX_PIXELS", "1000000")
     monkeypatch.setenv("SYSTEM_PROMPT", "system prompt")
     monkeypatch.setenv("OLLAMA_TIMEOUT_SECONDS", "90")
     monkeypatch.setenv("MAX_RESPONSE_CHARS", "1500")
@@ -46,6 +49,9 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     assert config.ollama_model == "qwen3:8b"
     assert config.ollama_prewarm_enabled is False
     assert config.ollama_prewarm_prompt == "warm up"
+    assert config.vision_enabled is False
+    assert config.vision_image_only_prompt == "describe image"
+    assert config.vision_max_pixels == 1000000
     assert config.system_prompt == "system prompt"
     assert config.ollama_timeout_seconds == 90
     assert config.sqlite_path.name == "test.db"
@@ -61,4 +67,17 @@ def test_load_config_raises_when_max_response_chars_is_not_positive(
     monkeypatch.setenv("MAX_RESPONSE_CHARS", "0")
 
     with pytest.raises(ValueError, match="MAX_RESPONSE_CHARS must be greater than 0."):
+        load_config()
+
+
+def test_load_config_raises_when_vision_max_pixels_is_not_positive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISCORD_BOT_TOKEN", "token")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma4:26b")
+    monkeypatch.setenv("SYSTEM_PROMPT", "system prompt")
+    monkeypatch.setenv("VISION_MAX_PIXELS", "0")
+
+    with pytest.raises(ValueError, match="VISION_MAX_PIXELS must be greater than 0."):
         load_config()

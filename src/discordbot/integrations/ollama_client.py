@@ -35,14 +35,14 @@ class OllamaClient:
             timeout_seconds=config.ollama_timeout_seconds,
         )
 
-    async def generate_reply(self, messages: list[dict[str, str]]) -> OllamaChatResult:
+    async def generate_reply(self, messages: list[dict[str, object]]) -> OllamaChatResult:
         return await asyncio.to_thread(self._request_chat_sync, messages)
 
     async def prewarm(self, prompt: str) -> None:
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, object]] = [{"role": "user", "content": prompt}]
         await asyncio.to_thread(self._request_chat_sync, messages)
 
-    def _request_chat_sync(self, messages: list[dict[str, str]]) -> OllamaChatResult:
+    def _request_chat_sync(self, messages: list[dict[str, object]]) -> OllamaChatResult:
         payload = build_ollama_payload(
             model=self.model,
             messages=messages,
@@ -75,7 +75,7 @@ class OllamaClient:
 def build_ollama_payload(
     *,
     model: str,
-    messages: list[dict[str, str]],
+    messages: list[dict[str, object]],
 ) -> dict[str, object]:
     return {
         "model": model,
