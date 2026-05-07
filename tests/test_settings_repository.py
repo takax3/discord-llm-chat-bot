@@ -46,6 +46,12 @@ def test_get_guild_settings_returns_defaults_when_row_is_missing() -> None:
             vision_enabled=True,
             vision_image_only_prompt="describe image",
             vision_max_pixels=2073600,
+            web_search_enabled=False,
+            web_search_max_results=3,
+            web_search_timeout_seconds=10,
+            web_search_country="JP",
+            web_search_language="ja",
+            brave_search_api_key="",
         ),
     )
 
@@ -102,6 +108,12 @@ def test_get_guild_settings_returns_persisted_values() -> None:
             vision_enabled=True,
             vision_image_only_prompt="describe image",
             vision_max_pixels=2073600,
+            web_search_enabled=False,
+            web_search_max_results=3,
+            web_search_timeout_seconds=10,
+            web_search_country="JP",
+            web_search_language="ja",
+            brave_search_api_key="",
         ),
     )
 

@@ -1,5 +1,6 @@
 from discordbot.constants import DEFAULT_MAX_RESPONSE_CHARS
 from discordbot.domain.guild_settings import GuildSettings
+from discordbot.domain.search_result import SearchResult
 from discordbot.services.chat_service import ChatService, remove_bot_mention
 
 
@@ -134,3 +135,19 @@ def test_normalize_reply_truncates_long_message() -> None:
     reply = service.normalize_reply("123456789012345")
 
     assert reply == "123456\n..."
+
+
+def test_normalize_reply_with_sources_appends_reference_urls() -> None:
+    service = build_service()
+
+    reply = service.normalize_reply_with_sources(
+        "summary",
+        [
+            SearchResult(title="A", url="https://example.com/a", snippet=""),
+            SearchResult(title="B", url="https://example.com/b", snippet=""),
+        ],
+    )
+
+    assert "参考URL:" in reply
+    assert "https://example.com/a" in reply
+    assert "https://example.com/b" in reply

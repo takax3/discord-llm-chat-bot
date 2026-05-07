@@ -11,6 +11,8 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 - Bot の返信に対する reply では、保存済みの返信チェーンをたどって会話コンテキストを引き継げます。
 - 画像が添付されている場合は、vision 対応モデルに対して現在メッセージの画像 1 枚を推論に含められます。
 - 本文なしの画像だけのメッセージでは、画像内容の推定を依頼する既定プロンプトを内部的に補います。
+- Web 検索が有効な場合は、まずモデルが検索要否を判定し、必要なときだけ Brave Search API で一般 Web を検索します。
+- Web 検索を使った回答では、本文末尾に参考 URL を最大 3 件表示します。
 - Ollama 推論中は先に `Thinking... (Queue ahead: N)` を返し、完了後にそのメッセージを更新します。
 - 推論リクエストは bot 内で直列化し、前の推論が終わるまで次の推論は待機します。
 - サーバー設定が未登録のときは環境変数の既定値を使い、登録済みサーバーでは SQLite 設定を参照します。
@@ -24,6 +26,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 - mention を起点にした Ollama 応答
 - Bot 返信への reply での会話継続
 - vision 対応モデルへの画像添付入力
+- 条件付き Web 検索による回答補強
 - SQLite への会話履歴保存
 - サーバー単位の有効 / 無効、許可チャンネル設定
 - 起動前 prewarm
@@ -49,6 +52,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
    - `DISCORD_MENTION_RESPONSE` は本文が空のときの案内文として使われます。
    - モデル設定は `OLLAMA_MODEL` で切り替えます。
    - 画像入力を使う場合は `VISION_ENABLED=true` のままにし、vision 対応モデルを選びます。
+   - Web 検索を使う場合は `WEB_SEARCH_ENABLED=true` と `BRAVE_SEARCH_API_KEY` を設定します。
 2. `docker compose up --build -d` を実行します。
 3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します。
    - 初回はモデル取得に時間がかかることがあります。

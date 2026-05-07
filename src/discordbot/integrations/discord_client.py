@@ -6,6 +6,8 @@ import discord
 
 from discordbot.config import AppConfig
 from discordbot.domain.conversation_message import ConversationMessage
+from discordbot.domain.search_result import SearchResult
+from discordbot.integrations.brave_search_client import BraveSearchClient, BraveSearchClientError
 from discordbot.integrations.ollama_client import OllamaClient, OllamaClientError
 from discordbot.messages import format_message
 from discordbot.services.chat_service import ChatService
@@ -13,6 +15,7 @@ from discordbot.services.context_builder import ContextBuilder
 from discordbot.services.image_preprocessor import ImagePreprocessor, ImagePreprocessorError
 from discordbot.services.inference_queue import InferenceQueue
 from discordbot.services.presence_service import PresenceService
+from discordbot.services.search_decision_service import SearchDecisionService
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.webhook_logging import DiscordWebhookNotifier
@@ -40,6 +43,13 @@ def build_discord_client(
         intents=intents,
         logger=logger,
         ollama_client=ollama_client,
+        brave_search_client=BraveSearchClient(
+            api_key=config.brave_search_api_key,
+            max_results=config.web_search_max_results,
+            timeout_seconds=config.web_search_timeout_seconds,
+            country=config.web_search_country,
+            language=config.web_search_language,
+        ),
         context_builder=ContextBuilder(
             system_prompt=config.system_prompt,
             max_response_chars=config.max_response_chars,
@@ -59,6 +69,7 @@ class DiscordBotClient(discord.Client):
         chat_service: ChatService,
         logger: logging.Logger,
         ollama_client: OllamaClient,
+        brave_search_client: BraveSearchClient,
         context_builder: ContextBuilder,
         conversation_repository: ConversationRepository,
         settings_repository: SettingsRepository,
@@ -71,6 +82,7 @@ class DiscordBotClient(discord.Client):
         self._chat_service = chat_service
         self._logger = logger
         self._ollama_client = ollama_client
+        self._brave_search_client = brave_search_client
         self._context_builder = context_builder
         self._conversation_repository = conversation_repository
         self._settings_repository = settings_repository
@@ -81,6 +93,10 @@ class DiscordBotClient(discord.Client):
         self._ready_notified = False
         self._inference_queue = InferenceQueue()
         self._presence_service = PresenceService()
+        self._search_decision_service = SearchDecisionService(
+            ollama_client=ollama_client,
+            max_response_chars=config.max_response_chars,
+        )
         self._image_preprocessor = ImagePreprocessor(
             max_pixels=config.vision_max_pixels,
         )
@@ -173,6 +189,7 @@ class DiscordBotClient(discord.Client):
             sent_message = await message.reply(
                 self._chat_service.build_empty_message_reply(),
                 mention_author=False,
+                suppress_embeds=True,
             )
             self._save_conversation_message(
                 ConversationMessage(
@@ -195,6 +212,7 @@ class DiscordBotClient(discord.Client):
             sent_message = await message.reply(
                 self._chat_service.build_thinking_reply(queue_ahead),
                 mention_author=False,
+                suppress_embeds=True,
             )
             while queue_ahead > 0:
                 queue_ahead = await self._inference_queue.wait_for_ahead_change(
@@ -202,19 +220,48 @@ class DiscordBotClient(discord.Client):
                     previous_ahead=queue_ahead,
                 )
                 await sent_message.edit(
-                    content=self._chat_service.build_thinking_reply(queue_ahead)
+                    content=self._chat_service.build_thinking_reply(queue_ahead),
+                    suppress=True,
                 )
             turn_started = True
             prior_messages = self._build_prior_messages(message)
-            ollama_messages = self._context_builder.build_messages(
-                prior_messages=prior_messages,
-                user_message=user_message,
-                user_images=user_images,
-            )
             try:
+                search_results: list[SearchResult] = []
+                if self._config.web_search_enabled:
+                    decision = await self._search_decision_service.decide(
+                        prior_messages=prior_messages,
+                        user_message=user_message,
+                        user_images=user_images,
+                    )
+                    if decision.action == "search":
+                        try:
+                            search_results = await self._brave_search_client.search(
+                                decision.search_query
+                            )
+                        except BraveSearchClientError:
+                            self._logger.warning(
+                                format_message("web_search_failed", query=decision.search_query)
+                            )
+                    else:
+                        reply = decision.answer
+                        self._presence_service.set_tokens_per_second(None)
+                        search_results = []
+                        raise _DirectAnswerReady(reply=reply, search_results=search_results)
+                ollama_messages = self._context_builder.build_messages(
+                    prior_messages=prior_messages,
+                    user_message=user_message,
+                    user_images=user_images,
+                    search_results=search_results,
+                )
                 result = await self._ollama_client.generate_reply(ollama_messages)
                 reply = result.content
                 self._presence_service.set_tokens_per_second(result.tokens_per_second)
+                reply = self._chat_service.normalize_reply_with_sources(reply, search_results)
+            except _DirectAnswerReady as direct_answer:
+                reply = self._chat_service.normalize_reply_with_sources(
+                    direct_answer.reply,
+                    direct_answer.search_results,
+                )
             except OllamaClientError:
                 self._logger.warning(
                     format_message(
@@ -229,8 +276,7 @@ class DiscordBotClient(discord.Client):
             else:
                 await self._inference_queue.cancel(ticket)
             await self._sync_presence_from_queue()
-        reply = self._chat_service.normalize_reply(reply)
-        await sent_message.edit(content=reply)
+        await sent_message.edit(content=reply, suppress=True)
         self._save_conversation_message(
             ConversationMessage(
                 discord_message_id=sent_message.id,
@@ -339,3 +385,10 @@ class DiscordBotClient(discord.Client):
             )
         except discord.DiscordException:
             self._logger.exception(format_message("presence_update_failed"))
+
+
+class _DirectAnswerReady(Exception):
+    def __init__(self, *, reply: str, search_results: list[SearchResult]) -> None:
+        super().__init__(reply)
+        self.reply = reply
+        self.search_results = search_results

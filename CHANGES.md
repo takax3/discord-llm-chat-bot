@@ -18,3 +18,4 @@
 - Gemma 4 26B と Qwen3.6 の RTX 3090 向け設定ガイドを追加した
 - Discord presence に待機キュー数と直近のトークンスピードを表示するようにした
 - vision 対応モデルに対して Discord 添付画像 1 枚を推論へ渡せるようにした
+- Brave Search API を使った条件付き Web 検索補強を追加した

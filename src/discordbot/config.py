@@ -13,6 +13,11 @@ from discordbot.constants import (
     DEFAULT_VISION_ENABLED,
     DEFAULT_VISION_IMAGE_ONLY_PROMPT,
     DEFAULT_VISION_MAX_PIXELS,
+    DEFAULT_WEB_SEARCH_COUNTRY,
+    DEFAULT_WEB_SEARCH_ENABLED,
+    DEFAULT_WEB_SEARCH_LANGUAGE,
+    DEFAULT_WEB_SEARCH_MAX_RESULTS,
+    DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
     DEFAULT_WEBHOOK_MIN_LEVEL_NAME,
     DEFAULT_WEBHOOK_NOTIFY_LOGS,
     DEFAULT_WEBHOOK_NOTIFY_SHUTDOWN,
@@ -43,6 +48,12 @@ class AppConfig:
     vision_enabled: bool
     vision_image_only_prompt: str
     vision_max_pixels: int
+    web_search_enabled: bool
+    web_search_max_results: int
+    web_search_timeout_seconds: int
+    web_search_country: str
+    web_search_language: str
+    brave_search_api_key: str
 
 
 def _parse_channel_ids(raw_value: str) -> tuple[int, ...]:
@@ -126,6 +137,34 @@ def load_config() -> AppConfig:
     )
     if vision_max_pixels <= 0:
         raise ValueError("VISION_MAX_PIXELS must be greater than 0.")
+    web_search_enabled = _parse_bool_env(
+        os.getenv("WEB_SEARCH_ENABLED"),
+        DEFAULT_WEB_SEARCH_ENABLED,
+    )
+    web_search_max_results = int(
+        os.getenv("WEB_SEARCH_MAX_RESULTS", str(DEFAULT_WEB_SEARCH_MAX_RESULTS))
+    )
+    if web_search_max_results <= 0:
+        raise ValueError("WEB_SEARCH_MAX_RESULTS must be greater than 0.")
+    web_search_timeout_seconds = int(
+        os.getenv(
+            "WEB_SEARCH_TIMEOUT_SECONDS",
+            str(DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS),
+        )
+    )
+    if web_search_timeout_seconds <= 0:
+        raise ValueError("WEB_SEARCH_TIMEOUT_SECONDS must be greater than 0.")
+    web_search_country = os.getenv(
+        "WEB_SEARCH_COUNTRY",
+        DEFAULT_WEB_SEARCH_COUNTRY,
+    ).strip().upper()
+    web_search_language = os.getenv(
+        "WEB_SEARCH_LANGUAGE",
+        DEFAULT_WEB_SEARCH_LANGUAGE,
+    ).strip().lower()
+    brave_search_api_key = os.getenv("BRAVE_SEARCH_API_KEY", "").strip()
+    if web_search_enabled and not brave_search_api_key:
+        raise ValueError("BRAVE_SEARCH_API_KEY is required when WEB_SEARCH_ENABLED is true.")
     ollama_timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
     sqlite_path = Path(os.getenv("SQLITE_PATH", "./data/discordbot.db")).expanduser()
 
@@ -163,4 +202,10 @@ def load_config() -> AppConfig:
         vision_enabled=vision_enabled,
         vision_image_only_prompt=vision_image_only_prompt,
         vision_max_pixels=vision_max_pixels,
+        web_search_enabled=web_search_enabled,
+        web_search_max_results=web_search_max_results,
+        web_search_timeout_seconds=web_search_timeout_seconds,
+        web_search_country=web_search_country,
+        web_search_language=web_search_language,
+        brave_search_api_key=brave_search_api_key,
     )
