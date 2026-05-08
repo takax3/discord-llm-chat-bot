@@ -25,8 +25,8 @@ DEFAULT_VISION_ENABLED = True
 DEFAULT_VISION_IMAGE_ONLY_PROMPT = "この画像に写っているものを推定して、簡潔に説明してください。"
 DEFAULT_VISION_MAX_PIXELS = 2073600
 
-# ルーター判定ステップを最終返答の先頭に表示するかどうかの既定値。
-DEFAULT_ROUTER_SHOW_STEPS = False
+# 進捗ステップを積み重ねて表示するかどうかの既定値。
+DEFAULT_SHOW_STEPS = False
 
 # Web 検索補強の既定値。
 DEFAULT_WEB_SEARCH_ENABLED = False

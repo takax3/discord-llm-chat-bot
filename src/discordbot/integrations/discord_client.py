@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import discord
@@ -26,7 +27,6 @@ def build_discord_client(
     config: AppConfig,
     logger: logging.Logger,
     ollama_client: OllamaClient,
-    router_ollama_client: OllamaClient,
     conversation_repository: ConversationRepository,
     settings_repository: SettingsRepository,
     webhook_notifier: DiscordWebhookNotifier,
@@ -44,7 +44,6 @@ def build_discord_client(
         intents=intents,
         logger=logger,
         ollama_client=ollama_client,
-        router_ollama_client=router_ollama_client,
         brave_search_client=BraveSearchClient(
             api_key=config.brave_search_api_key,
             max_results=config.web_search_max_results,
@@ -71,7 +70,6 @@ class DiscordBotClient(discord.Client):
         chat_service: ChatService,
         logger: logging.Logger,
         ollama_client: OllamaClient,
-        router_ollama_client: OllamaClient,
         brave_search_client: BraveSearchClient,
         context_builder: ContextBuilder,
         conversation_repository: ConversationRepository,
@@ -85,7 +83,6 @@ class DiscordBotClient(discord.Client):
         self._chat_service = chat_service
         self._logger = logger
         self._ollama_client = ollama_client
-        self._router_ollama_client = router_ollama_client
         self._brave_search_client = brave_search_client
         self._context_builder = context_builder
         self._conversation_repository = conversation_repository
@@ -98,7 +95,7 @@ class DiscordBotClient(discord.Client):
         self._inference_queue = InferenceQueue()
         self._presence_service = PresenceService()
         self._search_decision_service = SearchDecisionService(
-            ollama_client=router_ollama_client,
+            ollama_client=ollama_client,
         )
         self._image_preprocessor = ImagePreprocessor(
             max_pixels=config.vision_max_pixels,
@@ -229,73 +226,59 @@ class DiscordBotClient(discord.Client):
             turn_started = True
             prior_messages = self._build_prior_messages(message)
             try:
+                show_steps = self._config.show_steps
                 completed_lines: list[str] = []
                 search_results: list[SearchResult] = []
+
+                def _with_pending(text: str) -> str:
+                    if show_steps and completed_lines:
+                        return "\n".join(completed_lines + [text])
+                    return text
+
                 if self._config.web_search_enabled:
-                    has_separate_router = (
-                        self._config.ollama_router_model != self._config.ollama_model
+                    # Stage 1: メインモデルが検索要否とクエリ（複数可）を1回で判定する
+                    await sent_message.edit(
+                        content=_with_pending(format_message("deciding")), suppress=True
                     )
-                    if has_separate_router:
-                        show_steps = self._config.ollama_router_show_steps
+                    decision = await self._search_decision_service.decide(
+                        prior_messages=prior_messages,
+                        user_message=user_message,
+                        user_images=user_images,
+                    )
+                    if decision.action == "search" and decision.search_queries:
+                        queries_text = ", ".join(decision.search_queries)
                         if show_steps:
-                            # ステップ結果を蓄積しながら表示（show_steps=true）
-                            async def on_pending(text: str) -> None:
-                                await sent_message.edit(
-                                    content="\n".join(completed_lines + [text]),
-                                    suppress=True,
-                                )
-
-                            async def on_result(text: str) -> None:
-                                completed_lines.append(text)
-                                await sent_message.edit(
-                                    content="\n".join(completed_lines),
-                                    suppress=True,
-                                )
-                        else:
-                            # 現在のステップのみを表示し、結果は捨てる（show_steps=false）
-                            async def on_pending(text: str) -> None:  # type: ignore[misc]
-                                await sent_message.edit(content=text, suppress=True)
-
-                            async def on_result(text: str) -> None:  # type: ignore[misc]
-                                pass
-
-                        decision = await self._search_decision_service.decide(
-                            prior_messages=prior_messages,
-                            user_message=user_message,
-                            on_pending=on_pending,
-                            on_result=on_result,
-                        )
-                    else:
-                        # ルーターなし: メインモデルが判定とクエリ生成を1回で実施（速度優先）
-                        decision = await self._search_decision_service.decide_combined(
-                            prior_messages=prior_messages,
-                            user_message=user_message,
-                            user_images=user_images,
-                        )
-                    if decision.action == "search":
-                        searching_text = self._chat_service.build_searching_reply(
-                            decision.search_query
-                        )
+                            completed_lines.append(format_message("search_queries_decided", queries=queries_text))
                         await sent_message.edit(
-                            content="\n".join(completed_lines + [searching_text])
-                            if completed_lines
-                            else searching_text,
+                            content=_with_pending(format_message("searching")),
                             suppress=True,
                         )
-                        try:
-                            search_results = await self._brave_search_client.search(
-                                decision.search_query
-                            )
+                        results_list = await asyncio.gather(
+                            *[
+                                self._brave_search_client.search(q)
+                                for q in decision.search_queries
+                            ],
+                            return_exceptions=True,
+                        )
+                        for r in results_list:
+                            if isinstance(r, list):
+                                search_results.extend(r)
+                            elif isinstance(r, BraveSearchClientError):
+                                self._logger.warning(
+                                    format_message("web_search_failed", query=str(r))
+                                )
+                        if show_steps:
                             completed_lines.append(format_message("search_completed"))
-                            await sent_message.edit(
-                                content="\n".join(completed_lines),
-                                suppress=True,
-                            )
-                        except BraveSearchClientError:
-                            self._logger.warning(
-                                format_message("web_search_failed", query=decision.search_query)
-                            )
-                # Stage 2: 常にメインモデルで最終回答を生成
+                        await sent_message.edit(
+                            content="\n".join(completed_lines) if completed_lines else format_message("search_completed"),
+                            suppress=True,
+                        )
+                    elif show_steps:
+                        completed_lines.append(format_message("search_not_needed"))
+                # Stage 2: 常にメインモデルで最終回答を生成（推論中を表示）
+                await sent_message.edit(
+                    content=_with_pending(format_message("inferring")), suppress=True
+                )
                 ollama_messages = self._context_builder.build_messages(
                     prior_messages=prior_messages,
                     user_message=user_message,
@@ -306,8 +289,9 @@ class DiscordBotClient(discord.Client):
                 reply = result.content
                 self._presence_service.set_tokens_per_second(result.tokens_per_second)
                 reply = self._chat_service.normalize_reply_with_sources(reply, search_results)
-                # OLLAMA_ROUTER_SHOW_STEPS=true のとき、判定ルートを返答の先頭に付加する
-                if completed_lines:
+                if show_steps:
+                    completed_lines.append(format_message("inferring_done"))
+                if show_steps and completed_lines:
                     reply = "\n".join(completed_lines) + "\n\n" + reply
             except OllamaClientError:
                 self._logger.warning(

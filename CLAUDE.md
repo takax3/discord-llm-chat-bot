@@ -43,10 +43,11 @@ Python 3.14 / Poetry 管理。依存追加は `pyproject.toml` に記載。
 
 ## 重要な設計判断
 
-- **検索要否の判定はメインモデル推奨**（`decide_combined`、1 回呼び出し）。`OLLAMA_ROUTER_MODEL` に別モデルを指定するルーターあり構成も動くが、1B モデルは精度不安定で非推奨。詳細は `docs/development-log.md` を参照。
-- **ルーターあり構成の判定フロー**: classify_genre → summarize_query → is_explicit → needs_fresh → generate_query（5ステップ）。各ステップは `on_pending` / `on_result` コールバックで Discord にリアルタイム表示される。
+- **検索要否の判定はメインモデルが 1 回の JSON 呼び出しで実施**（`decide()`）。`OLLAMA_MODEL` のみを使う単一モデル構成。1B ルーターモデルは精度不安定で廃止済み。詳細は `docs/development-log.md` を参照。
+- **複数クエリ対応**: 独立した知識が必要なとき LLM が `search_queries` に複数クエリを返し、`asyncio.gather` で並列実行する。
+- **2 段構成の明確な分離**: Stage 1（検索判定、JSON 専用プロンプト）と Stage 2（最終回答、`SYSTEM_PROMPT`）は完全に異なる呼び出し。
 - **推論は必ず直列化**（`inference_queue`）。同時リクエストは順番待ち。
-- `ollama_router_model` は未指定またはメインモデルと同じ場合、メインモデルが判定も行う（`config.py` の `load_config` 参照）。
+- **`SHOW_STEPS` フラグ**: `true` のとき判定・検索クエリ・検索完了・推論完了を積み重ねて表示し、最終応答の前に残す。`false`（既定）では途中ステップを都度置き換え、最終応答のみ表示する。
 
 ## テスト方針
 

@@ -35,15 +35,6 @@ class OllamaClient:
             timeout_seconds=config.ollama_timeout_seconds,
         )
 
-    @classmethod
-    def from_config_as_router(cls, config: AppConfig) -> "OllamaClient":
-        return cls(
-            base_url=config.ollama_base_url.rstrip("/"),
-            model=config.ollama_router_model,
-            system_prompt=config.system_prompt,
-            timeout_seconds=config.ollama_timeout_seconds,
-        )
-
     async def generate_reply(self, messages: list[dict[str, object]]) -> OllamaChatResult:
         return await asyncio.to_thread(self._request_chat_sync, messages)
 

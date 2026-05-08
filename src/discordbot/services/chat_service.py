@@ -59,9 +59,6 @@ class ChatService:
     def build_thinking_reply(self, queue_ahead: int) -> str:
         return format_message("thinking", queue_ahead=queue_ahead)
 
-    def build_searching_reply(self, query: str) -> str:
-        return format_message("searching", query=query)
-
     def build_ollama_error_reply(self) -> str:
         return DEFAULT_OLLAMA_ERROR_RESPONSE
 

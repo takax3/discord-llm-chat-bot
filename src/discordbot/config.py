@@ -10,7 +10,7 @@ from discordbot.constants import (
     DEFAULT_MENTION_RESPONSE,
     DEFAULT_OLLAMA_PREWARM_ENABLED,
     DEFAULT_OLLAMA_PREWARM_PROMPT,
-    DEFAULT_ROUTER_SHOW_STEPS,
+    DEFAULT_SHOW_STEPS,
     DEFAULT_VISION_ENABLED,
     DEFAULT_VISION_IMAGE_ONLY_PROMPT,
     DEFAULT_VISION_MAX_PIXELS,
@@ -41,9 +41,8 @@ class AppConfig:
     max_response_chars: int
     ollama_base_url: str
     ollama_model: str
-    ollama_router_model: str
-    ollama_router_show_steps: bool
     ollama_prewarm_enabled: bool
+    show_steps: bool
     ollama_prewarm_prompt: str
     ollama_timeout_seconds: int
     sqlite_path: Path
@@ -124,11 +123,6 @@ def load_config() -> AppConfig:
     ollama_model = os.getenv("OLLAMA_MODEL", "").strip()
     if not ollama_model:
         raise ValueError("OLLAMA_MODEL is required.")
-    ollama_router_model = os.getenv("OLLAMA_ROUTER_MODEL", "").strip() or ollama_model
-    ollama_router_show_steps = _parse_bool_env(
-        os.getenv("OLLAMA_ROUTER_SHOW_STEPS"),
-        DEFAULT_ROUTER_SHOW_STEPS,
-    )
     ollama_prewarm_enabled = _parse_bool_env(
         os.getenv("OLLAMA_PREWARM_ENABLED"),
         DEFAULT_OLLAMA_PREWARM_ENABLED,
@@ -186,6 +180,7 @@ def load_config() -> AppConfig:
     if web_search_enabled and not brave_search_api_key:
         raise ValueError("BRAVE_SEARCH_API_KEY is required when WEB_SEARCH_ENABLED is true.")
     ollama_timeout_seconds = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "60"))
+    show_steps = _parse_bool_env(os.getenv("SHOW_STEPS"), DEFAULT_SHOW_STEPS)
     sqlite_path = Path(os.getenv("SQLITE_PATH", "./data/discordbot.db")).expanduser()
 
     return AppConfig(
@@ -214,11 +209,10 @@ def load_config() -> AppConfig:
         max_response_chars=max_response_chars,
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
-        ollama_router_model=ollama_router_model,
-        ollama_router_show_steps=ollama_router_show_steps,
         ollama_prewarm_enabled=ollama_prewarm_enabled,
         ollama_prewarm_prompt=ollama_prewarm_prompt,
         ollama_timeout_seconds=ollama_timeout_seconds,
+        show_steps=show_steps,
         sqlite_path=sqlite_path,
         system_prompt=system_prompt,
         vision_enabled=vision_enabled,

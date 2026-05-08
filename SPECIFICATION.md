@@ -32,16 +32,16 @@
 ### 主な業務フロー
 1. アプリ起動時に設定を読み込む。
 2. Discord クライアント、Ollama クライアント、永続化層、監視通知を初期化する。
-3. 必要に応じて Ollama prewarm を実行する（メインモデルとルーターモデルの両方）。
+3. 必要に応じて Ollama prewarm を実行する（メインモデル）。
 4. Bot が Discord イベントを購読する。
 5. Bot が mention されたメッセージ、または Bot の返信に対する reply を会話対象として抽出する。
 6. サーバーごとの利用可否と入力制約を検証する。
 7. SQLite から会話履歴とサーバー設定を取得し、会話コンテキストを構築する。
 8. 推論キューに積み、前のリクエスト完了を待つ（待機中は `Waiting...` を表示）。
 9. `WEB_SEARCH_ENABLED=true` の場合、Stage 1 として検索要否を判定する。
-   - ルーターなし（推奨）: メインモデルが `decide_combined()` で判定とクエリ生成を 1 回で実施。
-   - ルーターあり: 別モデルが最大 5 ステップで判定（各ステップを Discord にリアルタイム表示）。
-   - 検索する場合は Brave Search API を呼び出し、結果を Stage 2 のコンテキストに追加する。
+   - メインモデルが 1 回の JSON 呼び出しで判定とクエリ生成を実施（「判定中…」を表示）。
+   - 複数の独立した知識が必要なときは複数クエリを返し、Brave Search API を並列実行する。
+   - 検索する場合は結果を Stage 2 のコンテキストに追加する。
 10. Stage 2 としてメインモデルが最終回答を生成し、Discord に返信する。
 11. 返信本文と presence を更新する。
 12. 終了シグナル受信時に新規受付を止め、未完了タスクを順次停止する。
@@ -124,8 +124,6 @@
 - `DISCORD_MENTION_RESPONSE`: 本文が空の mention を受けたときの案内文。
 - `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
 - `OLLAMA_MODEL`: 利用する Ollama モデル名。例: `qwen3.6:27b`, `gemma4:26b`。
-- `OLLAMA_ROUTER_MODEL`: 検索判定に使うルーターモデル。未設定またはメインと同じ場合はメインモデルが判定する（推奨）。
-- `OLLAMA_ROUTER_SHOW_STEPS`: ルーター判定ステップを最終返答の先頭に付加するか。推論中のリアルタイム表示は常に行われる。
 - `OLLAMA_KEEP_ALIVE`: Ollama 側でモデルを保持する時間。
 - `OLLAMA_NUM_PARALLEL`: Ollama 側の並列設定。
 - `OLLAMA_CONTEXT_LENGTH`: Ollama 側のコンテキスト長設定。
@@ -137,6 +135,7 @@
 - `DEFAULT_ALLOWED_CHANNEL_IDS`: サーバー設定未登録時に使う許可チャンネル ID 一覧。
 - `MAX_HISTORY_MESSAGES`: 会話コンテキストに含める最大メッセージ数。
 - `MAX_RESPONSE_CHARS`: Discord 返信の最大文字数。
+- `SHOW_STEPS`: 推論進捗ステップを積み重ねて表示するかどうか。`true` にすると判定・検索・推論の完了を順に表示し、最終応答の前に残す。`false`（既定）では途中ステップを都度置き換え、最終応答のみを残す。
 - `STREAMING_UPDATE_INTERVAL_MS`: 段階表示時の更新間隔。
 - `OLLAMA_TIMEOUT_SECONDS`: Ollama 応答待機タイムアウト。
 - `VISION_ENABLED`: vision 対応モデルで画像添付入力を有効にするか。

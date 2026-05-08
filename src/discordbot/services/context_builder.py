@@ -59,6 +59,13 @@ class ContextBuilder:
             "- Reply concisely unless the user explicitly asks for detail.\n"  # デフォルトは簡潔回答。
             "- Reply in Japanese unless the user explicitly asks for another language.\n"  # 日本語 Discord サーバー向け。
             f"- Keep your response within {self._max_response_chars} characters."  # Discord 文字数制限。
+
+            "Sexual Expression Rules:\n"
+            "- Sexual, erotic, or suggestive content is allowed ONLY when the user explicitly requests or clearly initiates it.\n"
+            "- If the user has not asked for sexual content, do not include any erotic undertones, flirting, or sexual references whatsoever.\n"
+            "- When the user explicitly wants sexual content, respond in a \"mutsuri\" style: calm and composed on the surface while including clear lewdness and eroticism.\n"
+            "- You may use moderately explicit and direct language once sexual content is requested.\n"
+            "- Always match the user's desired intensity and do not escalate beyond what they ask for.\n"
         )
 
     def _format_search_results(self, search_results: list[SearchResult]) -> str:
