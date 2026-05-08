@@ -1,6 +1,6 @@
 # Ollama Qwen3.6 RTX 3090 Settings
 
-このメモは、`RTX 3090 24GB` 上で `Qwen3.6` を Discord bot 用途で安定運用するための設定例です。
+このメモは、`RTX 3090 24GB` 上で `Qwen3.6` をシングルモデル構成で Discord bot 用途に安定運用するための設定例です。
 
 ## 対象
 
@@ -24,16 +24,13 @@ Ollama の公開ライブラリでは、2026-05-07 時点で次の系統が確�
 
 RTX 3090 では `qwen3.6:latest` も理論上は載りますが、VRAM 余裕がかなり小さいため、チャットボット用途ではまず `qwen3.6:27b` を基準にするのが安全です。
 
-## 推奨設定（ルーターモデルあり構成）
-
-ルーター（`OLLAMA_ROUTER_MODEL`）を併用する場合は、KV キャッシュを抑えて VRAM に余裕を持たせます。
+## 推奨設定
 
 ```env
 OLLAMA_MODEL=qwen3.6:27b
-OLLAMA_ROUTER_MODEL=qwen3.5:2b
 OLLAMA_KEEP_ALIVE=24h
 OLLAMA_NUM_PARALLEL=1
-OLLAMA_CONTEXT_LENGTH=8192
+OLLAMA_CONTEXT_LENGTH=16384
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
 OLLAMA_PREWARM_ENABLED=true
@@ -46,18 +43,17 @@ OLLAMA_TIMEOUT_SECONDS=180
 | 用途 | 概算 VRAM |
 |---|---|
 | qwen3.6:27b Q4_K_M | 約 17 GB |
-| KV キャッシュ（context 8192 × parallel 1） | 約 0.5 GB |
-| ルーター qwen3.5:2b | 約 2.7 GB |
-| 合計 | 約 20〜21 GB / 24 GB |
+| KV キャッシュ（context 16384 × parallel 1） | 約 1 GB |
+| compute graph | 約 0.3 GB |
+| 合計 | 約 18〜19 GB / 24 GB |
 
-Gemma 4 26B 構成より余裕が大きく、`OLLAMA_CONTEXT_LENGTH=16384` まで上げる余地もあります。
+Gemma 4 26B 構成より余裕が大きく、シングルモデル構成では `OLLAMA_CONTEXT_LENGTH=16384` を使いやすい水準です。
 
 ## 設定意図
 
-- `OLLAMA_ROUTER_MODEL=qwen3.5:2b`
-  - 検索要否の判定専用モデルです。同じ Qwen ファミリーで揃えることで、ルーティングプロンプトへの追従が安定しやすくなります。未設定時は `OLLAMA_MODEL` にフォールバックします。
-- `OLLAMA_CONTEXT_LENGTH=8192`
-  - ルーターモデルの常駐 VRAM を確保しつつ、通常会話には十分な長さです。
+- `OLLAMA_CONTEXT_LENGTH=16384`
+  - VRAM 余裕（約 5〜6 GB）を活かして長い reply チェーンにも対応できます。
+  - 節約したい場合は `8192` に下げても通常会話には十分です。
 - `OLLAMA_NUM_PARALLEL=1`
   - bot 側で推論を直列化しているため、高くする必要はありません。
 - `OLLAMA_FLASH_ATTENTION=1`
@@ -71,24 +67,9 @@ Gemma 4 26B 構成より余裕が大きく、`OLLAMA_CONTEXT_LENGTH=16384` ま�
 - `OLLAMA_TIMEOUT_SECONDS=180`
   - 初回ロードや重めの応答を見込んだ余裕値です。
 
-## ルーターなし・シングルモデル構成
-
-ルーターを使わずメインモデルのみで動かす場合は、コンテキストを広く取れます。
-
-```env
-OLLAMA_MODEL=qwen3.6:27b
-# OLLAMA_ROUTER_MODEL は未設定（OLLAMA_MODEL にフォールバック）
-OLLAMA_NUM_PARALLEL=2
-OLLAMA_CONTEXT_LENGTH=32768
-OLLAMA_FLASH_ATTENTION=1
-OLLAMA_GPU_LAYERS=100
-OLLAMA_PREWARM_ENABLED=true
-OLLAMA_TIMEOUT_SECONDS=180
-```
-
 ## より大きい `qwen3.6:latest` を試す場合
 
-`qwen3.6:latest` は約 `24GB` と案内されており、RTX 3090 ではかなりタイトです。ルーターとの同時常駐は困難なため、シングルモデル構成か CPU オフロードを検討してください。
+`qwen3.6:latest` は約 `24GB` と案内されており、RTX 3090 ではかなりタイトです。KV キャッシュを最小化した構成で試せますが、VRAM ギリギリになります。
 
 ```env
 OLLAMA_MODEL=qwen3.6
