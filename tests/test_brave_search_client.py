@@ -54,6 +54,55 @@ def test_search_parses_web_results(monkeypatch: pytest.MonkeyPatch) -> None:
     assert results[0].title == "Title"
     assert results[0].url == "https://example.com"
     assert results[0].snippet == "Snippet"
+    assert results[0].extra_snippets == ()
+    assert results[0].age == ""
+
+
+def test_search_parses_extra_snippets_and_age(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = BraveSearchClient(
+        api_key="brave-key",
+        max_results=3,
+        timeout_seconds=10,
+        country="JP",
+        language="ja",
+    )
+
+    class FakeResponse:
+        headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "web": {
+                        "results": [
+                            {
+                                "title": "Title",
+                                "url": "https://example.com",
+                                "description": "Main snippet",
+                                "extra_snippets": ["Extra 1", "Extra 2"],
+                                "age": "2 days ago",
+                            }
+                        ]
+                    }
+                }
+            ).encode("utf-8")
+
+    monkeypatch.setattr(
+        "discordbot.integrations.brave_search_client.urllib.request.urlopen",
+        lambda *args, **kwargs: FakeResponse(),
+    )
+
+    results = client._search_sync("query")
+
+    assert results[0].snippet == "Main snippet"
+    assert results[0].extra_snippets == ("Extra 1", "Extra 2")
+    assert results[0].age == "2 days ago"
 
 
 def test_search_parses_gzip_response(monkeypatch: pytest.MonkeyPatch) -> None:

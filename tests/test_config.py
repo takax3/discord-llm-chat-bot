@@ -53,6 +53,7 @@ def test_load_config_uses_default_mention_response_when_empty(monkeypatch: pytes
     assert config.max_response_chars == 1500
     assert config.ollama_base_url == "http://ollama:11434"
     assert config.ollama_model == "qwen3:8b"
+    assert config.ollama_router_model == "qwen3:8b"
     assert config.ollama_prewarm_enabled is False
     assert config.ollama_prewarm_prompt == "warm up"
     assert config.vision_enabled is False

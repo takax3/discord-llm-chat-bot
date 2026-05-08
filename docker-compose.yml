@@ -64,9 +64,14 @@ services:
       - sh
       - -c
       - |
-        MODEL=$${OLLAMA_MODEL:-qwen3:8b}
+        MODEL=$${OLLAMA_MODEL:-gemma4:26b}
         echo "Pulling model: $$MODEL ..."
         curl -sf -X POST http://ollama:11434/api/pull -H "Content-Type: application/json" -d "{\"name\":\"$$MODEL\"}"
+        ROUTER=$${OLLAMA_ROUTER_MODEL:-}
+        if [ -n "$$ROUTER" ] && [ "$$ROUTER" != "$$MODEL" ]; then
+          echo "Pulling router model: $$ROUTER ..."
+          curl -sf -X POST http://ollama:11434/api/pull -H "Content-Type: application/json" -d "{\"name\":\"$$ROUTER\"}"
+        fi
         echo "Done."
 
 volumes:

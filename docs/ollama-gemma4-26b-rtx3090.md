@@ -1,23 +1,37 @@
 # Ollama Gemma 4 26B RTX 3090 Settings
 
-このメモは、`RTX 3090 24GB` 上で `Gemma 4 26B` を Discord bot 用途で安定運用するための設定例です。
+このメモは、`RTX 3090 24GB` 上で `Gemma 4 26B` をルーター（`gemma3:1b`）付き構成で Discord bot 用途に安定運用するための設定例です。
 
 ## 対象
 
 - GPU: `RTX 3090 24GB`
 - 用途: Discord 上の日本語チャットボット
 - 実行基盤: `Ollama + Docker Compose`
-- 想定モデル: `gemma4:26b`
+- メインモデル: `gemma4:26b`
+- ルーターモデル: `gemma3:1b`
 
-## Compose 側の推奨設定
+## VRAM の内訳（参考）
+
+| 用途 | モデル | 概算 VRAM |
+|---|---|---|
+| メイン推論 | gemma4:26b Q4_K_M | 約 17〜18 GB |
+| KV キャッシュ（context 8192 × parallel 1） | — | 約 1 GB |
+| ルーター推論 | gemma3:1b Q4_K_M | 約 1.7 GB |
+| 合計 | | 約 20〜21 GB / 24 GB |
+
+`gemma4:e2b` は vision encoder を含むため実際に約 7 GB を消費し、26b と同時常駐できなかった。
+`gemma3:1b` は純テキストモデル（約 1.7 GB）のため両モデルの同時常駐が可能。
+
+## 推奨設定
 
 `.env` / `.env.example` では次の値を基準にします。
 
 ```env
 OLLAMA_MODEL=gemma4:26b
+OLLAMA_ROUTER_MODEL=gemma3:1b
 OLLAMA_KEEP_ALIVE=24h
-OLLAMA_NUM_PARALLEL=2
-OLLAMA_CONTEXT_LENGTH=32768
+OLLAMA_NUM_PARALLEL=1
+OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
 OLLAMA_TIMEOUT_SECONDS=180
@@ -25,38 +39,40 @@ OLLAMA_TIMEOUT_SECONDS=180
 
 ## 設定意図
 
-- `OLLAMA_CONTEXT_LENGTH=32768`
-  - 32K コンテキストで、reply チェーンを使う会話でも余裕を持たせます。
+- `OLLAMA_ROUTER_MODEL=gemma3:1b`
+  - 検索要否の判定専用モデルとして純テキストの軽量版を使います。
+  - vision encoder を持たないため約 1.7 GB で収まり、26b と同時 VRAM 常駐が可能です。
+  - `gemma4:e2b` は vision encoder を含み実測 ~7 GB になるため不適です。
+- `OLLAMA_CONTEXT_LENGTH=8192`
+  - 32768 から下げることで KV キャッシュを削減します。
+  - reply チェーンを含む通常会話には 8K で十分なケースがほとんどです。
+- `OLLAMA_NUM_PARALLEL=1`
+  - bot 側で推論を直列化しているため、2 以上にしてもほぼ効果がありません。
+  - 1 にすることで KV キャッシュの二重確保を避け、約 1〜2 GB 節約できます。
 - `OLLAMA_FLASH_ATTENTION=1`
   - VRAM 効率と速度の改善を狙います。
 - `OLLAMA_GPU_LAYERS=100`
   - 全レイヤーを GPU に寄せる前提です。
-- `OLLAMA_NUM_PARALLEL=2`
-  - Ollama 自体の並列設定です。
-  - この bot はアプリ側で推論を直列化しているため、大きく上げる必要はありません。
 - `OLLAMA_KEEP_ALIVE=24h`
-  - モデルを VRAM に保持しやすくし、再ロード待ちを減らします。
+  - 両モデルを VRAM に保持し、ルーター初回ロード待ちを避けます。
 - `OLLAMA_TIMEOUT_SECONDS=180`
   - 26B クラスの初回応答や重い質問に備えて長めにしています。
 
-## モデル設定の考え方
+## コンテキスト長を戻したい場合
 
-量子化設定は `docker-compose.yml` ではなく `Modelfile` 側で管理します。
+ルーターを使わない構成に戻す、または VRAM に余裕がある別の GPU に移す場合は、次の値を元に戻せます。
 
-Gemma 4 26B を RTX 3090 で使うなら、まずは次のような方針が現実的です。
-
-- 量子化: `Q4_K_M` 相当を優先候補にする
-- コンテキスト: まずは `32K` 運用から始める
-- 多並列: 速度より安定性優先で低めに保つ
+```env
+# OLLAMA_ROUTER_MODEL は未設定 or OLLAMA_MODEL と同じ値にするとフォールバック
+OLLAMA_NUM_PARALLEL=2
+OLLAMA_CONTEXT_LENGTH=32768
+```
 
 ## 運用メモ
 
-- モデル切り替え後は `ollama-init` が正しい `OLLAMA_MODEL` を pull しているか確認します。
-- 起動後は `docker compose exec ollama ollama ps` で GPU 利用状況を確認します。
-- 応答速度が厳しい場合は、次の順で見直すのがおすすめです。
-  1. `OLLAMA_CONTEXT_LENGTH` を下げる
-  2. `OLLAMA_NUM_PARALLEL` を下げる
-  3. より軽い量子化や小さいモデルを検討する
+- 初回起動時は `ollama-init` が `OLLAMA_MODEL`（26b）と `OLLAMA_ROUTER_MODEL`（gemma3:1b）を pull します。
+- `docker compose exec ollama ollama ps` で両モデルが VRAM に乗っているか確認できます。
+- VRAM が足りない場合は `OLLAMA_CONTEXT_LENGTH` を下げるか、`OLLAMA_GPU_LAYERS` を減らして CPU にオフロードします。
 
 ## 確認コマンド
 

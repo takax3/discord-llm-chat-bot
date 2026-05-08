@@ -19,6 +19,7 @@ MESSAGES = {
     "guild_disabled": "Skipped reply because guild_id={guild_id} is disabled",
     "channel_not_allowed": "Skipped reply because channel_id={channel_id} is not allowed for guild_id={guild_id}",
     "thinking": "Thinking... (Queue ahead: {queue_ahead})",
+    "searching": "Searching... ({query})",
     "ollama_fallback": "Fell back to error reply because Ollama request failed for channel_id={channel_id}",
     "web_search_failed": "Failed to search the web for query={query}",
     "conversation_message_saved": "Saved conversation message discord_message_id={message_id} role={role}",

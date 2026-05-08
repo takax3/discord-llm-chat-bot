@@ -45,6 +45,7 @@ docker-compose.override.yml
 # IDE / editor
 .vscode/
 .idea/
+.claude/
 
 # Local project notes
 AGENTS.md

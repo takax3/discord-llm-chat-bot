@@ -78,18 +78,26 @@ class BraveSearchClient:
                 continue
             title = str(result.get("title", "")).strip()
             url = str(result.get("url", "")).strip()
-            snippet = str(result.get("description") or result.get("snippet") or "").strip()
-            if not snippet:
-                extra_snippets = result.get("extra_snippets")
-                if isinstance(extra_snippets, list) and extra_snippets:
-                    snippet = str(extra_snippets[0]).strip()
             if not title or not url:
                 continue
+            snippet = str(result.get("description") or result.get("snippet") or "").strip()
+            raw_extra = result.get("extra_snippets")
+            extra_snippets: tuple[str, ...] = ()
+            if isinstance(raw_extra, list):
+                extra_snippets = tuple(
+                    str(s).strip() for s in raw_extra if str(s).strip()
+                )
+            if not snippet and extra_snippets:
+                snippet = extra_snippets[0]
+                extra_snippets = extra_snippets[1:]
+            age = str(result.get("age") or result.get("page_age") or "").strip()
             normalized_results.append(
                 SearchResult(
                     title=title,
                     url=url,
                     snippet=snippet,
+                    extra_snippets=extra_snippets,
+                    age=age,
                 )
             )
         return normalized_results

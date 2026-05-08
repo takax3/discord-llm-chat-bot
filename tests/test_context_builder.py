@@ -38,10 +38,10 @@ def test_build_messages_includes_prior_chain_and_current_user_message() -> None:
     system_content = messages[0]["content"]
     assert messages[0]["role"] == "system"
     assert system_content.startswith("system\n\n")
-    assert "The current date and time is " in system_content
+    assert "Current date and time: " in system_content
     assert "JST" in system_content
     assert "If you do not know something" in system_content
-    assert f"Keep your final response within {DEFAULT_MAX_RESPONSE_CHARS} characters." in system_content
+    assert f"Keep your response within {DEFAULT_MAX_RESPONSE_CHARS} characters." in system_content
     assert messages[1] == {"role": "user", "content": "hello"}
     assert messages[2] == {"role": "assistant", "content": "hi"}
     assert messages[3] == {"role": "user", "content": "follow up"}

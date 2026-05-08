@@ -24,15 +24,16 @@ Ollama の公開ライブラリでは、2026-05-07 時点で次の系統が確�
 
 RTX 3090 では `qwen3.6:latest` も理論上は載りますが、VRAM 余裕がかなり小さいため、チャットボット用途ではまず `qwen3.6:27b` を基準にするのが安全です。
 
-## Compose 側の推奨設定
+## 推奨設定（ルーターモデルあり構成）
 
-`.env` / `.env.example` の設定例です。
+ルーター（`OLLAMA_ROUTER_MODEL`）を併用する場合は、KV キャッシュを抑えて VRAM に余裕を持たせます。
 
 ```env
 OLLAMA_MODEL=qwen3.6:27b
+OLLAMA_ROUTER_MODEL=qwen3.5:2b
 OLLAMA_KEEP_ALIVE=24h
-OLLAMA_NUM_PARALLEL=2
-OLLAMA_CONTEXT_LENGTH=32768
+OLLAMA_NUM_PARALLEL=1
+OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
 OLLAMA_PREWARM_ENABLED=true
@@ -40,18 +41,29 @@ OLLAMA_PREWARM_PROMPT=こんにちは。準備ができたら一言だけ返答�
 OLLAMA_TIMEOUT_SECONDS=180
 ```
 
+### VRAM の内訳（参考）
+
+| 用途 | 概算 VRAM |
+|---|---|
+| qwen3.6:27b Q4_K_M | 約 17 GB |
+| KV キャッシュ（context 8192 × parallel 1） | 約 0.5 GB |
+| ルーター qwen3.5:2b | 約 2.7 GB |
+| 合計 | 約 20〜21 GB / 24 GB |
+
+Gemma 4 26B 構成より余裕が大きく、`OLLAMA_CONTEXT_LENGTH=16384` まで上げる余地もあります。
+
 ## 設定意図
 
-- `OLLAMA_MODEL=qwen3.6:27b`
-  - RTX 3090 で速度と安定性のバランスを取りやすいです。
-- `OLLAMA_CONTEXT_LENGTH=32768`
-  - reply チェーンを含む会話でも扱いやすい、現実的な上限です。
+- `OLLAMA_ROUTER_MODEL=qwen3.5:2b`
+  - 検索要否の判定専用モデルです。同じ Qwen ファミリーで揃えることで、ルーティングプロンプトへの追従が安定しやすくなります。未設定時は `OLLAMA_MODEL` にフォールバックします。
+- `OLLAMA_CONTEXT_LENGTH=8192`
+  - ルーターモデルの常駐 VRAM を確保しつつ、通常会話には十分な長さです。
+- `OLLAMA_NUM_PARALLEL=1`
+  - bot 側で推論を直列化しているため、高くする必要はありません。
 - `OLLAMA_FLASH_ATTENTION=1`
   - 速度と VRAM 効率の改善を狙います。
 - `OLLAMA_GPU_LAYERS=100`
   - 全レイヤーを GPU に寄せる前提です。
-- `OLLAMA_NUM_PARALLEL=2`
-  - bot 側で推論要求を直列化しているため、高くしすぎる必要はありません。
 - `OLLAMA_KEEP_ALIVE=24h`
   - モデル再ロードを減らし、体感速度を安定させます。
 - `OLLAMA_PREWARM_ENABLED=true`
@@ -59,29 +71,30 @@ OLLAMA_TIMEOUT_SECONDS=180
 - `OLLAMA_TIMEOUT_SECONDS=180`
   - 初回ロードや重めの応答を見込んだ余裕値です。
 
-## より軽くしたい場合
+## ルーターなし・シングルモデル構成
 
-応答が重い場合は、次の順で見直すのがおすすめです。
+ルーターを使わずメインモデルのみで動かす場合は、コンテキストを広く取れます。
 
-1. `OLLAMA_CONTEXT_LENGTH` を `16384` に下げる
-2. `OLLAMA_TIMEOUT_SECONDS` は維持したまま、応答速度を観測する
-3. それでも厳しければ、より小さい Qwen 系タグを検討する
+```env
+OLLAMA_MODEL=qwen3.6:27b
+# OLLAMA_ROUTER_MODEL は未設定（OLLAMA_MODEL にフォールバック）
+OLLAMA_NUM_PARALLEL=2
+OLLAMA_CONTEXT_LENGTH=32768
+OLLAMA_FLASH_ATTENTION=1
+OLLAMA_GPU_LAYERS=100
+OLLAMA_PREWARM_ENABLED=true
+OLLAMA_TIMEOUT_SECONDS=180
+```
 
 ## より大きい `qwen3.6:latest` を試す場合
 
-`qwen3.6:latest` は Ollama 上で約 `24GB` と案内されており、RTX 3090 ではかなりタイトです。試すなら次のような注意が必要です。
-
-- 他の GPU 利用プロセスをできるだけ減らす
-- `OLLAMA_CONTEXT_LENGTH` はまず `16384` から始める
-- 初回ロード時間が長くなりやすいので prewarm を有効にしておく
-
-設定例:
+`qwen3.6:latest` は約 `24GB` と案内されており、RTX 3090 ではかなりタイトです。ルーターとの同時常駐は困難なため、シングルモデル構成か CPU オフロードを検討してください。
 
 ```env
 OLLAMA_MODEL=qwen3.6
 OLLAMA_KEEP_ALIVE=24h
 OLLAMA_NUM_PARALLEL=1
-OLLAMA_CONTEXT_LENGTH=16384
+OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
 OLLAMA_PREWARM_ENABLED=true
@@ -90,9 +103,7 @@ OLLAMA_TIMEOUT_SECONDS=240
 
 ## モデル設定の考え方
 
-量子化設定は `docker-compose.yml` ではなく、モデルタグまたは `Modelfile` 側で管理します。
-
-今回の前提では、`qwen3.6:27b` も `qwen3.6:latest` も Ollama 側の公開モデル実体として `Q4_K_M` が使われます。別の量子化を使いたい場合は、専用タグまたは独自 `Modelfile` を使う想定です。
+量子化設定は `docker-compose.yml` ではなく、モデルタグまたは `Modelfile` 側で管理します。`qwen3.6:27b` も `qwen3.6:latest` も Ollama 側の公開モデル実体として `Q4_K_M` が使われます。別の量子化を使いたい場合は、専用タグまたは独自 `Modelfile` を使う想定です。
 
 ## 確認コマンド
 

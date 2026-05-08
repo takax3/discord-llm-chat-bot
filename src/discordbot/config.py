@@ -40,6 +40,7 @@ class AppConfig:
     max_response_chars: int
     ollama_base_url: str
     ollama_model: str
+    ollama_router_model: str
     ollama_prewarm_enabled: bool
     ollama_prewarm_prompt: str
     ollama_timeout_seconds: int
@@ -121,6 +122,7 @@ def load_config() -> AppConfig:
     ollama_model = os.getenv("OLLAMA_MODEL", "").strip()
     if not ollama_model:
         raise ValueError("OLLAMA_MODEL is required.")
+    ollama_router_model = os.getenv("OLLAMA_ROUTER_MODEL", "").strip() or ollama_model
     ollama_prewarm_enabled = _parse_bool_env(
         os.getenv("OLLAMA_PREWARM_ENABLED"),
         DEFAULT_OLLAMA_PREWARM_ENABLED,
@@ -206,6 +208,7 @@ def load_config() -> AppConfig:
         max_response_chars=max_response_chars,
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
+        ollama_router_model=ollama_router_model,
         ollama_prewarm_enabled=ollama_prewarm_enabled,
         ollama_prewarm_prompt=ollama_prewarm_prompt,
         ollama_timeout_seconds=ollama_timeout_seconds,

@@ -10,6 +10,4 @@ SearchAction = Literal["answer", "search"]
 @dataclass(frozen=True)
 class SearchDecision:
     action: SearchAction
-    answer: str = ""
     search_query: str = ""
-    reason: str = ""

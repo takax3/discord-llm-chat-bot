@@ -26,6 +26,7 @@ def build_discord_client(
     config: AppConfig,
     logger: logging.Logger,
     ollama_client: OllamaClient,
+    router_ollama_client: OllamaClient,
     conversation_repository: ConversationRepository,
     settings_repository: SettingsRepository,
     webhook_notifier: DiscordWebhookNotifier,
@@ -43,6 +44,7 @@ def build_discord_client(
         intents=intents,
         logger=logger,
         ollama_client=ollama_client,
+        router_ollama_client=router_ollama_client,
         brave_search_client=BraveSearchClient(
             api_key=config.brave_search_api_key,
             max_results=config.web_search_max_results,
@@ -69,6 +71,7 @@ class DiscordBotClient(discord.Client):
         chat_service: ChatService,
         logger: logging.Logger,
         ollama_client: OllamaClient,
+        router_ollama_client: OllamaClient,
         brave_search_client: BraveSearchClient,
         context_builder: ContextBuilder,
         conversation_repository: ConversationRepository,
@@ -82,6 +85,7 @@ class DiscordBotClient(discord.Client):
         self._chat_service = chat_service
         self._logger = logger
         self._ollama_client = ollama_client
+        self._router_ollama_client = router_ollama_client
         self._brave_search_client = brave_search_client
         self._context_builder = context_builder
         self._conversation_repository = conversation_repository
@@ -94,8 +98,7 @@ class DiscordBotClient(discord.Client):
         self._inference_queue = InferenceQueue()
         self._presence_service = PresenceService()
         self._search_decision_service = SearchDecisionService(
-            ollama_client=ollama_client,
-            max_response_chars=config.max_response_chars,
+            ollama_client=router_ollama_client,
         )
         self._image_preprocessor = ImagePreprocessor(
             max_pixels=config.vision_max_pixels,
@@ -228,12 +231,28 @@ class DiscordBotClient(discord.Client):
             try:
                 search_results: list[SearchResult] = []
                 if self._config.web_search_enabled:
-                    decision = await self._search_decision_service.decide(
-                        prior_messages=prior_messages,
-                        user_message=user_message,
-                        user_images=user_images,
+                    has_separate_router = (
+                        self._config.ollama_router_model != self._config.ollama_model
                     )
+                    if has_separate_router:
+                        # ルーターあり: 小モデルが判定とクエリ生成を2段階で実施
+                        decision = await self._search_decision_service.decide(
+                            prior_messages=prior_messages,
+                            user_message=user_message,
+                            user_images=user_images,
+                        )
+                    else:
+                        # ルーターなし: メインモデルが判定とクエリ生成を1回で実施（速度優先）
+                        decision = await self._search_decision_service.decide_combined(
+                            prior_messages=prior_messages,
+                            user_message=user_message,
+                            user_images=user_images,
+                        )
                     if decision.action == "search":
+                        await sent_message.edit(
+                            content=self._chat_service.build_searching_reply(decision.search_query),
+                            suppress=True,
+                        )
                         try:
                             search_results = await self._brave_search_client.search(
                                 decision.search_query
@@ -242,11 +261,7 @@ class DiscordBotClient(discord.Client):
                             self._logger.warning(
                                 format_message("web_search_failed", query=decision.search_query)
                             )
-                    else:
-                        reply = decision.answer
-                        self._presence_service.set_tokens_per_second(None)
-                        search_results = []
-                        raise _DirectAnswerReady(reply=reply, search_results=search_results)
+                # Stage 2: 常にメインモデルで最終回答を生成
                 ollama_messages = self._context_builder.build_messages(
                     prior_messages=prior_messages,
                     user_message=user_message,
@@ -257,11 +272,6 @@ class DiscordBotClient(discord.Client):
                 reply = result.content
                 self._presence_service.set_tokens_per_second(result.tokens_per_second)
                 reply = self._chat_service.normalize_reply_with_sources(reply, search_results)
-            except _DirectAnswerReady as direct_answer:
-                reply = self._chat_service.normalize_reply_with_sources(
-                    direct_answer.reply,
-                    direct_answer.search_results,
-                )
             except OllamaClientError:
                 self._logger.warning(
                     format_message(
@@ -385,10 +395,3 @@ class DiscordBotClient(discord.Client):
             )
         except discord.DiscordException:
             self._logger.exception(format_message("presence_update_failed"))
-
-
-class _DirectAnswerReady(Exception):
-    def __init__(self, *, reply: str, search_results: list[SearchResult]) -> None:
-        super().__init__(reply)
-        self.reply = reply
-        self.search_results = search_results
