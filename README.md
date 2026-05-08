@@ -12,11 +12,13 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 - Bot 返信への reply での会話継続（保存済みチェーンを会話コンテキストとして引き継ぎ）
 - vision 対応モデルへの画像添付入力（本文なし画像は既定プロンプトで補完）
 - 条件付き Web 検索による回答補強（Brave Search API、回答末尾に参考 URL 最大 3 件表示）
+  - メインモデルが検索要否を判定しクエリを生成（`decide_combined`、推奨）
+  - 別途ルーターモデルを指定した場合は多段ステップで判定し、各ステップを Discord にリアルタイム表示
 - システムプロンプトへの現在日時（JST）自動注入
 - 推論直列化（前の推論完了まで次を待機）と presence へのキュー数・推論速度表示
 - SQLite への会話履歴保存とサーバー単位設定管理
 - Discord webhook 通知（起動開始・ready・終了・ログ）、複数 URL のカンマ区切り指定に対応
-- 起動前 Ollama prewarm
+- 起動前 Ollama prewarm（メインモデルとルーターモデルの両方）
 - GPU 前提の Docker Compose 構成（NVIDIA device reservation）
 - graceful shutdown（シグナル受信時に先にオフライン表示へ切り替え）
 
@@ -35,6 +37,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
    - `SYSTEM_PROMPT`: モデルへ渡す基本システムプロンプト。
    - `VISION_ENABLED=true` にすると vision 対応モデルで画像添付入力が使えます。
    - `WEB_SEARCH_ENABLED=true` にすると Brave Search API による Web 検索補強が有効になります。合わせて `BRAVE_SEARCH_API_KEY` も設定してください。
+   - `OLLAMA_ROUTER_MODEL` を設定しない場合（推奨）、メインモデルが検索判定も行います。別の小規模モデルを指定すると多段ルーターとして動作しますが、1B モデルは精度が不安定なため非推奨です。
 2. `docker compose up --build -d` を実行します。
 3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します（時間がかかる場合があります）。
    - 進捗確認: `docker compose logs -f ollama-init`

@@ -2,7 +2,7 @@ from discordbot.messages import format_message
 
 
 def test_format_message_returns_thinking_message() -> None:
-    assert format_message("thinking", queue_ahead=1) == "Thinking... (Queue ahead: 1)"
+    assert format_message("thinking", queue_ahead=1) == "Waiting... (Queue ahead: 1)"
 
 
 def test_format_message_returns_reply_context_log_message() -> None:

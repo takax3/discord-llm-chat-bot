@@ -14,26 +14,27 @@ src/discordbot/
   config.py
   constants.py
   messages.py
+  webhook_logging.py
   domain/
-    chat.py
-    events.py
-    errors.py
+    guild_settings.py
+    conversation_message.py
+    search_decision.py
+    search_result.py
   integrations/
     discord_client.py
     ollama_client.py
+    brave_search_client.py
   services/
-    admin_command_service.py
     chat_service.py
     context_builder.py
-    moderation_service.py
-    streaming_service.py
+    inference_queue.py
+    presence_service.py
+    image_preprocessor.py
+    search_decision_service.py
   storage/
     database.py
-    history_repository.py
+    conversation_repository.py
     settings_repository.py
-  monitoring/
-    notifier.py
-    logging_setup.py
 ```
 
 ## リクエスト処理フロー
@@ -41,11 +42,15 @@ src/discordbot/
 2. mention もしくは Bot 返信への reply でない通常メッセージは無視する。
 3. `settings_repository` がサーバー設定と利用制限を確認する。
 4. `conversation_repository` と `context_builder` が SQLite 履歴を集めて LLM 入力へ整形する。
-5. `chat_service` が待機メッセージを作成する。
+5. `chat_service` が待機メッセージ `Waiting... (Queue ahead: N)` を先に返す。
 6. `inference_queue` が推論を直列化し、キュー待ち件数を管理する。
-7. `ollama_client` が利用モデルへ問い合わせる。
-8. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
-9. 完了後に入出力を SQLite へ保存する。
+7. （Stage 1 / `WEB_SEARCH_ENABLED=true` のとき）検索要否を判定する。
+   - ルーターなし（推奨）: `ollama_client` が `decide_combined()` で判定とクエリ生成を 1 回で実施。
+   - ルーターあり: `search_decision_service` が最大 5 ステップで判定し、各ステップを Discord にリアルタイム表示。
+   - 検索する場合は `brave_search_client` が検索を実行し、結果を Stage 2 コンテキストに追加する。
+8. （Stage 2）`ollama_client` が利用モデルへ最終回答を問い合わせる。
+9. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
+10. 完了後に入出力を SQLite へ保存する。
 
 ## 管理コマンドフロー
 1. Discord integration が slash command を受信する。
@@ -72,9 +77,11 @@ src/discordbot/
   - 応答文字数上限
 
 ## 応答表示の方針
-- 最初に `Thinking... (Queue ahead: N)` のプレースホルダメッセージを返す。
+- 最初に `Waiting... (Queue ahead: N)` のプレースホルダメッセージを返す。
 - キューが進んだら既存メッセージを編集して `Queue ahead` を更新する。
-- 推論完了後に最終応答でメッセージを置き換える。
+- ルーターモデルを使う場合、各ステップの進捗を Discord にリアルタイム表示する（`OLLAMA_ROUTER_SHOW_STEPS` により累積 or 現在ステップのみ表示を切り替え）。
+- 検索を実行した場合、完了後に `検索完了` を表示に残す。
+- 推論完了後に最終応答でメッセージを置き換える。ルーター進捗が残っている場合は先頭に付加する。
 - 最終応答だけ履歴保存対象とし、途中断片は保存しない。
 
 ## 初期実装で優先するもの

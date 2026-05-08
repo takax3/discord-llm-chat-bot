@@ -229,17 +229,41 @@ class DiscordBotClient(discord.Client):
             turn_started = True
             prior_messages = self._build_prior_messages(message)
             try:
+                completed_lines: list[str] = []
                 search_results: list[SearchResult] = []
                 if self._config.web_search_enabled:
                     has_separate_router = (
                         self._config.ollama_router_model != self._config.ollama_model
                     )
                     if has_separate_router:
-                        # ルーターあり: 小モデルが判定とクエリ生成を2段階で実施
+                        show_steps = self._config.ollama_router_show_steps
+                        if show_steps:
+                            # ステップ結果を蓄積しながら表示（show_steps=true）
+                            async def on_pending(text: str) -> None:
+                                await sent_message.edit(
+                                    content="\n".join(completed_lines + [text]),
+                                    suppress=True,
+                                )
+
+                            async def on_result(text: str) -> None:
+                                completed_lines.append(text)
+                                await sent_message.edit(
+                                    content="\n".join(completed_lines),
+                                    suppress=True,
+                                )
+                        else:
+                            # 現在のステップのみを表示し、結果は捨てる（show_steps=false）
+                            async def on_pending(text: str) -> None:  # type: ignore[misc]
+                                await sent_message.edit(content=text, suppress=True)
+
+                            async def on_result(text: str) -> None:  # type: ignore[misc]
+                                pass
+
                         decision = await self._search_decision_service.decide(
                             prior_messages=prior_messages,
                             user_message=user_message,
-                            user_images=user_images,
+                            on_pending=on_pending,
+                            on_result=on_result,
                         )
                     else:
                         # ルーターなし: メインモデルが判定とクエリ生成を1回で実施（速度優先）
@@ -249,13 +273,23 @@ class DiscordBotClient(discord.Client):
                             user_images=user_images,
                         )
                     if decision.action == "search":
+                        searching_text = self._chat_service.build_searching_reply(
+                            decision.search_query
+                        )
                         await sent_message.edit(
-                            content=self._chat_service.build_searching_reply(decision.search_query),
+                            content="\n".join(completed_lines + [searching_text])
+                            if completed_lines
+                            else searching_text,
                             suppress=True,
                         )
                         try:
                             search_results = await self._brave_search_client.search(
                                 decision.search_query
+                            )
+                            completed_lines.append(format_message("search_completed"))
+                            await sent_message.edit(
+                                content="\n".join(completed_lines),
+                                suppress=True,
                             )
                         except BraveSearchClientError:
                             self._logger.warning(
@@ -272,6 +306,9 @@ class DiscordBotClient(discord.Client):
                 reply = result.content
                 self._presence_service.set_tokens_per_second(result.tokens_per_second)
                 reply = self._chat_service.normalize_reply_with_sources(reply, search_results)
+                # OLLAMA_ROUTER_SHOW_STEPS=true のとき、判定ルートを返答の先頭に付加する
+                if completed_lines:
+                    reply = "\n".join(completed_lines) + "\n\n" + reply
             except OllamaClientError:
                 self._logger.warning(
                     format_message(

@@ -10,6 +10,7 @@ from discordbot.constants import (
     DEFAULT_MENTION_RESPONSE,
     DEFAULT_OLLAMA_PREWARM_ENABLED,
     DEFAULT_OLLAMA_PREWARM_PROMPT,
+    DEFAULT_ROUTER_SHOW_STEPS,
     DEFAULT_VISION_ENABLED,
     DEFAULT_VISION_IMAGE_ONLY_PROMPT,
     DEFAULT_VISION_MAX_PIXELS,
@@ -41,6 +42,7 @@ class AppConfig:
     ollama_base_url: str
     ollama_model: str
     ollama_router_model: str
+    ollama_router_show_steps: bool
     ollama_prewarm_enabled: bool
     ollama_prewarm_prompt: str
     ollama_timeout_seconds: int
@@ -123,6 +125,10 @@ def load_config() -> AppConfig:
     if not ollama_model:
         raise ValueError("OLLAMA_MODEL is required.")
     ollama_router_model = os.getenv("OLLAMA_ROUTER_MODEL", "").strip() or ollama_model
+    ollama_router_show_steps = _parse_bool_env(
+        os.getenv("OLLAMA_ROUTER_SHOW_STEPS"),
+        DEFAULT_ROUTER_SHOW_STEPS,
+    )
     ollama_prewarm_enabled = _parse_bool_env(
         os.getenv("OLLAMA_PREWARM_ENABLED"),
         DEFAULT_OLLAMA_PREWARM_ENABLED,
@@ -209,6 +215,7 @@ def load_config() -> AppConfig:
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
         ollama_router_model=ollama_router_model,
+        ollama_router_show_steps=ollama_router_show_steps,
         ollama_prewarm_enabled=ollama_prewarm_enabled,
         ollama_prewarm_prompt=ollama_prewarm_prompt,
         ollama_timeout_seconds=ollama_timeout_seconds,

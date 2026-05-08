@@ -32,14 +32,19 @@
 ### 主な業務フロー
 1. アプリ起動時に設定を読み込む。
 2. Discord クライアント、Ollama クライアント、永続化層、監視通知を初期化する。
-3. 必要に応じて Ollama prewarm を実行する。
+3. 必要に応じて Ollama prewarm を実行する（メインモデルとルーターモデルの両方）。
 4. Bot が Discord イベントを購読する。
 5. Bot が mention されたメッセージ、または Bot の返信に対する reply を会話対象として抽出する。
 6. サーバーごとの利用可否と入力制約を検証する。
 7. SQLite から会話履歴とサーバー設定を取得し、会話コンテキストを構築する。
-8. 推論キューに積み、前のリクエスト完了を待ってから Ollama へ問い合わせる。
-9. 返信本文と presence を更新する。
-10. 終了シグナル受信時に新規受付を止め、未完了タスクを順次停止する。
+8. 推論キューに積み、前のリクエスト完了を待つ（待機中は `Waiting...` を表示）。
+9. `WEB_SEARCH_ENABLED=true` の場合、Stage 1 として検索要否を判定する。
+   - ルーターなし（推奨）: メインモデルが `decide_combined()` で判定とクエリ生成を 1 回で実施。
+   - ルーターあり: 別モデルが最大 5 ステップで判定（各ステップを Discord にリアルタイム表示）。
+   - 検索する場合は Brave Search API を呼び出し、結果を Stage 2 のコンテキストに追加する。
+10. Stage 2 としてメインモデルが最終回答を生成し、Discord に返信する。
+11. 返信本文と presence を更新する。
+12. 終了シグナル受信時に新規受付を止め、未完了タスクを順次停止する。
 
 ### 重要な制約
 - Discord 側制限に合わせて応答文字数を制御する。
@@ -119,6 +124,8 @@
 - `DISCORD_MENTION_RESPONSE`: 本文が空の mention を受けたときの案内文。
 - `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
 - `OLLAMA_MODEL`: 利用する Ollama モデル名。例: `qwen3.6:27b`, `gemma4:26b`。
+- `OLLAMA_ROUTER_MODEL`: 検索判定に使うルーターモデル。未設定またはメインと同じ場合はメインモデルが判定する（推奨）。
+- `OLLAMA_ROUTER_SHOW_STEPS`: ルーター判定ステップを最終返答の先頭に付加するか。推論中のリアルタイム表示は常に行われる。
 - `OLLAMA_KEEP_ALIVE`: Ollama 側でモデルを保持する時間。
 - `OLLAMA_NUM_PARALLEL`: Ollama 側の並列設定。
 - `OLLAMA_CONTEXT_LENGTH`: Ollama 側のコンテキスト長設定。
@@ -132,6 +139,15 @@
 - `MAX_RESPONSE_CHARS`: Discord 返信の最大文字数。
 - `STREAMING_UPDATE_INTERVAL_MS`: 段階表示時の更新間隔。
 - `OLLAMA_TIMEOUT_SECONDS`: Ollama 応答待機タイムアウト。
+- `VISION_ENABLED`: vision 対応モデルで画像添付入力を有効にするか。
+- `VISION_IMAGE_ONLY_PROMPT`: 画像のみ添付されて本文がないときに使う既定プロンプト。
+- `VISION_MAX_PIXELS`: 画像縮小後の最大画素数。
+- `WEB_SEARCH_ENABLED`: Brave Search API による Web 検索補強を有効にするか。
+- `BRAVE_SEARCH_API_KEY`: Brave Search API キー。`WEB_SEARCH_ENABLED=true` のとき必須。
+- `WEB_SEARCH_MAX_RESULTS`: 検索結果の最大取得件数。
+- `WEB_SEARCH_TIMEOUT_SECONDS`: Brave Search API 1 回あたりのタイムアウト秒数。
+- `WEB_SEARCH_COUNTRY`: Brave Search の地域設定。
+- `WEB_SEARCH_LANGUAGE`: Brave Search の言語設定。
 - `LOG_LEVEL`: ログ出力レベル。
 - `DISCORD_WEBHOOK_URL`: Discord webhook 通知先 URL。
 - `DISCORD_WEBHOOK_NOTIFY_STARTUP`: 起動通知を送るかどうか。
