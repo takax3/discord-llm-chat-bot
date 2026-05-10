@@ -12,7 +12,7 @@
 |---|---|
 | Discord クライアント | Discord.py（メンション / Bot へのリプライに反応） |
 | LLM バックエンド | Ollama（ローカル HTTP API） |
-| データ永続化 | SQLite（会話履歴・ギルド設定） |
+| データ永続化 | SQLite（会話履歴・ギルド設定・推論ログ） |
 | Web 検索 | Brave Search API（オプション） |
 | 通知 | Discord Webhook（起動・終了・ログ） |
 | コンテナ | Docker Compose |
@@ -217,3 +217,82 @@ Rules:
 - **Webhook embed footer に送信日時表示**
 - **vision 対応**: Discord 添付画像 1 枚を LLM に渡す
 - **複数検索クエリ並列実行**: LLM が独立した知識が必要と判断したとき複数クエリを返し `asyncio.gather` で並列検索
+
+---
+
+## 推論ログ記録の追加
+
+推論 1 回ごとに `inference_logs` テーブルへタイムスタンプ・トークン数・検索クエリ数・エラーフラグを記録するようにした。
+
+### タイムスタンプ方針
+
+- `_now_utc()` ヘルパー（`discord_client.py` 内）: `datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")`
+- UTC で保存し、SQLite の `julianday` 等がそのまま使える
+- 表示時の JST 変換は Python 側で行う
+
+### 記録タイミング
+
+| フィールド | 収集箇所 |
+|---|---|
+| `message_received_at` | `discord_client` がメッセージイベントを受け取った直後 |
+| `decision_started_at` / `decision_ended_at` | `search_decision_service.decide()` の呼び出し前後 |
+| `search_started_at` / `search_ended_at` | Brave Search API 並列実行の前後 |
+| `inference_started_at` / `inference_ended_at` | Stage 2（最終回答）の Ollama 呼び出し前後 |
+| `reply_sent_at` | Discord への返信送信完了後 |
+
+### トークン数の伝播
+
+- `OllamaClient` が Ollama API レスポンスから `prompt_tokens` / `completion_tokens` を取得し `OllamaChatResult` に持たせる
+- `SearchDecisionService` が `SearchDecision` にトークン数を付与して返す
+- `discord_client` がこれらの値を `InferenceLog` に詰めて `InferenceLogRepository.save()` を呼ぶ
+
+### is_error フラグ
+
+- `OllamaClientError` が発生した場合のみ `is_error=True` で記録する
+- エラー時も収集済みのタイムスタンプを保持してログに残す
+
+---
+
+## `/stats` スラッシュコマンドの追加
+
+推論ログを手軽に確認するため、`/stats` スラッシュコマンドを実装した。
+
+### CommandTree を Client に持たせる方式
+
+`discord.py` のスラッシュコマンドは `app_commands.CommandTree` を介して登録する。`Bot` サブクラスではなく素の `Client` を使っているため、`__init__` で `self.tree = app_commands.CommandTree(self)` を手動生成し、`setup_hook()` の中で `await self.tree.sync()` を呼んでグローバル登録する方式を採用した。
+
+コマンド定義は `_register_slash_commands()` に集約し、`__init__` から呼ぶ。これにより新しいスラッシュコマンドを追加する場合も同メソッドに追記するだけで済む。
+
+### 全体表示への変更
+
+当初は `/stats` を `ephemeral=True`（実行者のみ表示）で実装していたが、デバッグ情報をチャンネル参加者と共有できるよう全体表示に変更した。
+
+### 表示項目の追加
+
+`message_received_at`（メッセージ受信時刻）を先頭に、`reply_sent_at`（返信完了時刻）を末尾に追加した。これにより受信から返信完了までの全体所要時間をひと目で把握できる。
+
+### `fetch_last_by_channel` の追加
+
+`inference_log_repository` に `WHERE channel_id = ? ORDER BY id DESC LIMIT 1` で当該チャンネルの最新ログを 1 件取得する `fetch_last_by_channel(channel_id)` を追加した。チャンネル単位の絞り込みにより、同一サーバーの別チャンネルのログが混入しない。
+
+### `_elapsed_seconds` ヘルパー
+
+Stage 1・Stage 2 の所要時間計算（ISO 8601 Z サフィックス文字列 → float 秒）を `_elapsed_seconds(start, end)` として切り出した。`start` または `end` が `None` のときは `None` を返し、呼び出し側で未計測として扱う。
+
+---
+
+## GPU 消費電力リアルタイム計測の追加
+
+推論ターン中（キュー通過後〜返答送信完了まで）の GPU 消費電力を 1 秒おきにサンプリングし、平均電力と推定消費エネルギーを `inference_logs` に記録するようにした。
+
+### 実装方針
+
+- `GpuPowerSampler`（`services/gpu_power_sampler.py`）: `pynvml` 経由で NVML を呼び出す。`pynvml` 未インストール時は `_pynvml = None` として `available=False`。NVIDIA GPU 未検出時は `nvmlInit()` の例外を握りつぶして `available=False`。
+- ポーリングは `asyncio.wait_for(asyncio.shield(stop.wait()), timeout=1.0)` で 1 秒おきに実行する非同期タスク（`asyncio.create_task`）。`gpu_power_sampler.available` が `False` のときはタスク自体を起動しない。
+- 計測区間: `turn_started = True`（キュー通過）〜 `sent_message.edit(content=reply)` 完了まで。Brave Search の HTTP 待機時間も区間に含まれる（意図的）。
+- `gpu_avg_watts = mean(samples)`、`gpu_energy_joules = avg_watts × elapsed_seconds`（`turn_start_time` を `datetime.now(timezone.utc)` で記録）。
+- サンプルが 0 件の場合（NVIDIA GPU なし、または全サンプルで取得失敗）は `gpu_avg_watts` / `gpu_energy_joules` ともに `None` とし、`inference_logs` に `NULL` で保存する。
+
+### グレースフル無効化の設計判断
+
+`pynvml` を optional 依存とし、NVIDIA GPU のない環境でも Bot 本体の起動・動作を妨げないことを優先した。`available` プロパティで呼び出し側が GPU の有無を意識せず扱えるように設計している。

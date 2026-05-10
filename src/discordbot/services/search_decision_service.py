@@ -30,7 +30,13 @@ class SearchDecisionService:
             result = await self._ollama_client.generate_reply(messages)
         except OllamaClientError:
             return SearchDecision(action="answer")
-        return _parse_search_decision(result.content, fallback_query=user_message)
+        decision = _parse_search_decision(result.content, fallback_query=user_message)
+        return SearchDecision(
+            action=decision.action,
+            search_queries=decision.search_queries,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+        )
 
     def _build_decision_messages(
         self,

@@ -17,6 +17,8 @@ class OllamaClientError(RuntimeError):
 class OllamaChatResult:
     content: str
     tokens_per_second: float | None
+    prompt_tokens: int | None
+    completion_tokens: int | None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,8 @@ class OllamaClient:
         return OllamaChatResult(
             content=content,
             tokens_per_second=_extract_tokens_per_second(response_payload),
+            prompt_tokens=_extract_int(response_payload, "prompt_eval_count"),
+            completion_tokens=_extract_int(response_payload, "eval_count"),
         )
 
 
@@ -82,6 +86,11 @@ def build_ollama_payload(
         "stream": False,
         "messages": messages,
     }
+
+
+def _extract_int(response_payload: dict[str, object], key: str) -> int | None:
+    value = response_payload.get(key)
+    return int(value) if isinstance(value, int) and value > 0 else None
 
 
 def _extract_tokens_per_second(response_payload: dict[str, object]) -> float | None:

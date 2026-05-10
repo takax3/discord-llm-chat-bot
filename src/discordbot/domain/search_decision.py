@@ -11,3 +11,5 @@ SearchAction = Literal["answer", "search"]
 class SearchDecision:
     action: SearchAction
     search_queries: tuple[str, ...] = field(default_factory=tuple)
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None

@@ -53,7 +53,7 @@ def test_prewarm_uses_single_user_prompt(monkeypatch) -> None:
 
     def fake_request(messages):
         captured["messages"] = messages
-        return OllamaChatResult(content="ok", tokens_per_second=None)
+        return OllamaChatResult(content="ok", tokens_per_second=None, prompt_tokens=None, completion_tokens=None)
 
     monkeypatch.setattr(OllamaClient, "_request_chat_sync", lambda self, messages: fake_request(messages))
 
@@ -76,6 +76,8 @@ def test_generate_reply_returns_tokens_per_second(monkeypatch) -> None:
         lambda self, messages: OllamaChatResult(
             content="hello",
             tokens_per_second=12.5,
+            prompt_tokens=100,
+            completion_tokens=20,
         ),
     )
 
@@ -83,3 +85,5 @@ def test_generate_reply_returns_tokens_per_second(monkeypatch) -> None:
 
     assert result.content == "hello"
     assert result.tokens_per_second == 12.5
+    assert result.prompt_tokens == 100
+    assert result.completion_tokens == 20

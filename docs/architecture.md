@@ -20,6 +20,7 @@ src/discordbot/
     conversation_message.py
     search_decision.py
     search_result.py
+    inference_log.py
   integrations/
     discord_client.py
     ollama_client.py
@@ -31,10 +32,12 @@ src/discordbot/
     presence_service.py
     image_preprocessor.py
     search_decision_service.py
+    gpu_power_sampler.py
   storage/
     database.py
     conversation_repository.py
     settings_repository.py
+    inference_log_repository.py
 ```
 
 ## リクエスト処理フロー
@@ -50,8 +53,19 @@ src/discordbot/
 8. （Stage 2）`ollama_client` が利用モデルへ最終回答を問い合わせる。
 9. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
 10. 完了後に入出力を SQLite へ保存する。
+11. `inference_log_repository` が推論ログ（タイムスタンプ 8 点・トークン数・検索クエリ数・エラーフラグ・GPU 消費電力/エネルギー）を `inference_logs` テーブルへ保存する。
 
-## 管理コマンドフロー
+## スラッシュコマンドフロー
+
+`discord_client.py` が `app_commands.CommandTree` を保持し、`setup_hook()` で `tree.sync()` を呼んでグローバル登録する。コマンド定義は `_register_slash_commands()` にまとめる。
+
+### `/stats`
+1. Discord integration が slash command を受信する。
+2. `inference_log_repository.fetch_last_by_channel(channel_id)` で当該チャンネルの最新ログを 1 件取得する。
+3. ログが存在しない場合は「このチャンネルにはまだ推論ログがありません。」を `ephemeral=True` で返す。
+4. ログが存在する場合、`_elapsed_seconds(start, end)` ヘルパーで所要時間を計算し、Stage 1・検索クエリ数・Stage 2 の統計を `ephemeral=True` で返す。
+
+## 管理コマンドフロー（未実装）
 1. Discord integration が slash command を受信する。
 2. `admin_command_service` が実行者権限を確認する。
 3. `settings_repository` がサーバー設定を読み書きする。

@@ -81,7 +81,34 @@
     - Ollama 到達不能、タイムアウト、Discord 返信失敗時はログ出力し、可能なら簡潔な失敗メッセージを返す。
     - 待機メッセージ更新や presence 更新に失敗しても Bot 全体は停止させない。
 
-### 管理用 slash command
+### `/stats` スラッシュコマンド
+- 目的: 実行したチャンネルの最新推論ログを確認する。
+- 入力:
+  - slash command 実行（チャンネル ID を自動取得）
+- 出力:
+  - チャンネル全体への応答（全員に表示）
+- 動作:
+  - 正常系:
+    - `inference_logs` テーブルから当該チャンネルの最新ログを 1 件取得する。
+    - メッセージ受信時刻を先頭に表示する。
+    - Stage 1（検索判定）の所要時間と消費トークン数（prompt + completion）を表示する。
+    - 検索が発生した場合は検索クエリ数を表示する。
+    - Stage 2（推論）の所要時間と消費トークン数（prompt + completion）を表示する。
+    - `reply_sent_at` が記録されている場合は返信完了時刻を末尾に表示する。
+  - ログ未存在:
+    - 「このチャンネルにはまだ推論ログがありません。」を返す。
+- 表示例:
+  ```
+  **最後の推論ログ（このチャンネル）**
+  メッセージ受信: 2026-05-10T12:00:00.000Z
+  Stage 1（検索判定）: 0.83 秒 | prompt 512 + completion 48 トークン
+  検索クエリ数: 2
+  Stage 2（推論）: 12.40 秒 | prompt 1024 + completion 200 トークン
+  返信完了: 2026-05-10T12:00:13.500Z
+  ```
+- 登録方式: `setup_hook()` 内で `app_commands.CommandTree.sync()` を呼び出し、ボット起動時にグローバル登録する。
+
+### 管理用 slash command（未実装）
 - 目的: サーバーごとのモデル名、システムプロンプト、利用制限などの運用設定を管理する。
 - 入力:
   - slash command 名
@@ -187,6 +214,22 @@
   - `event_type`
   - `payload`
   - `created_at`
+- `inference_logs`
+  - `id`
+  - `guild_id`
+  - `channel_id`
+  - `user_id`
+  - `message_received_at`（UTC ISO 8601 Z サフィックス）
+  - `decision_started_at` / `decision_ended_at`（Stage 1 の開始・終了）
+  - `search_started_at` / `search_ended_at`（Brave Search の開始・終了）
+  - `inference_started_at` / `inference_ended_at`（Stage 2 の開始・終了）
+  - `reply_sent_at`（返答送信完了時刻）
+  - `decision_prompt_tokens` / `decision_completion_tokens`（Stage 1 のトークン数）
+  - `inference_prompt_tokens` / `inference_completion_tokens`（Stage 2 のトークン数）
+  - `search_query_count`（発行した検索クエリ数）
+  - `is_error`（OllamaClientError 発生フラグ）
+  - `gpu_avg_watts`（推論ターン中の GPU 平均消費電力 W、NVIDIA GPU 非搭載時は NULL）
+  - `gpu_energy_joules`（推論ターン中の GPU 推定消費エネルギー J、NVIDIA GPU 非搭載時は NULL）
 
 ## ログと監視
 - INFO:
@@ -250,7 +293,10 @@
 - `services/context_builder.py`: 会話履歴整形。
 - `services/inference_queue.py`: 推論直列化とキュー状態管理。
 - `services/presence_service.py`: presence 表示組み立て。
+- `services/gpu_power_sampler.py`: NVML 経由の GPU 消費電力サンプリング。NVIDIA 環境以外では無効化。
 - `services/admin_command_service.py`: slash command のユースケース。
 - `storage/settings_repository.py`: サーバー設定保存。
 - `storage/conversation_repository.py`: 会話履歴保存。
+- `storage/inference_log_repository.py`: 推論ログ保存。
 - `storage/database.py`: SQLite 接続とスキーマ管理。
+- `domain/inference_log.py`: 推論ログのデータクラス。
