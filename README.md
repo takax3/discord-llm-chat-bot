@@ -21,7 +21,7 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 - `/stats` スラッシュコマンド（チャンネルの最新推論ログを全体表示：メッセージ受信時刻・Stage 1/Stage 2 の所要時間とトークン数・検索クエリ数・返信完了時刻）
 - Discord webhook 通知（起動開始・ready・終了・ログ）、複数 URL のカンマ区切り指定に対応
 - 起動前 Ollama prewarm（メインモデル）
-- GPU 前提の Docker Compose 構成（NVIDIA device reservation）
+- GPU 前提の構成（Ollama はホストで起動し、Bot コンテナが `host.docker.internal` 経由で接続）
 - graceful shutdown（シグナル受信時に先にオフライン表示へ切り替え）
 
 ## 未実装
@@ -33,29 +33,30 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 
 ## Docker での起動
 
+前提: Ollama をホスト上で起動しておく必要があります。Bot コンテナは `host.docker.internal:11434` 経由でホストの Ollama に接続します。
+
 1. `.env.example` を `.env` としてコピーし、必要な値を設定します。
    - `DISCORD_BOT_TOKEN`: 必須。
    - `OLLAMA_MODEL`: 利用するモデル名（例: `gemma4:26b`、`qwen3.6:27b`）。
+   - `OLLAMA_BASE_URL`: Ollama への接続 URL。ホストで Ollama を起動している場合は既定値の `http://host.docker.internal:11434` をそのまま使えます。
    - `SYSTEM_PROMPT`: モデルへ渡す基本システムプロンプト。
    - `VISION_ENABLED=true` にすると vision 対応モデルで画像添付入力が使えます。
    - `WEB_SEARCH_ENABLED=true` にすると Brave Search API による Web 検索補強が有効になります。合わせて `BRAVE_SEARCH_API_KEY` も設定してください。
 
-2. `docker compose up --build -d` を実行します。
-3. 初回起動時は `ollama-init` サービスが `OLLAMA_MODEL` のモデルを自動取得します（時間がかかる場合があります）。
-   - 進捗確認: `docker compose logs -f ollama-init`
+2. ホスト上で Ollama を起動し、使用するモデルをあらかじめ取得しておきます。
+   ```
+   ollama pull gemma4:26b
+   ```
+
+3. `docker compose up --build -d` を実行します。
 4. Ollama prewarm 完了後に Discord 接続します。
    - 進捗確認: `docker compose logs -f discordbot`
-5. GPU 推論前提のため、`ollama` サービスには NVIDIA GPU の予約を明示しています。Docker Desktop / NVIDIA Container Toolkit で GPU 利用が有効になっている必要があります。
-   - 確認コマンド: `docker compose exec ollama nvidia-smi`
-6. Webhook 通知を使う場合は `.env` で次を設定します。
+5. Webhook 通知を使う場合は `.env` で次を設定します。
    - `DISCORD_WEBHOOK_URL`: 通知先 webhook URL。複数指定はカンマ区切り。
    - `DISCORD_WEBHOOK_NOTIFY_STARTUP` / `DISCORD_WEBHOOK_NOTIFY_SHUTDOWN` / `DISCORD_WEBHOOK_NOTIFY_LOGS`
    - `DISCORD_WEBHOOK_NOTIFY_LOGS_MIN_LEVEL`
-7. モデル別の推奨設定例は次を参照してください。
-   - `docs/ollama-gemma4-26b-rtx3090.md`
-   - `docs/ollama-qwen3.6-rtx3090.md`
 
-`docker-compose.yml` は `discordbot`・`ollama`・`ollama-init` の 3 サービス構成です。Bot からは `http://ollama:11434` で Ollama に接続します。会話履歴と設定 DB は Docker volume `discordbot-data` に、Ollama のモデルは `ollama-data` に保存されます。
+`docker-compose.yml` は `discordbot` サービスのみのシンプルな構成です。会話履歴と設定 DB は Docker volume `discordbot-data` に保存されます。
 
 ## 技術スタック
 

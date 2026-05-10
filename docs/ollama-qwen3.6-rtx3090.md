@@ -6,7 +6,7 @@
 
 - GPU: `RTX 3090 24GB`
 - 用途: Discord 上の日本語チャットボット
-- 実行基盤: `Ollama + Docker Compose`
+- 実行基盤: `Ollama（ホスト）+ Docker Compose（Bot のみ）`
 - 推奨モデル: `qwen3.6:27b`
 
 ## 推奨モデルの考え方
@@ -26,13 +26,20 @@ RTX 3090 では `qwen3.6:latest` も理論上は載りますが、VRAM 余裕が
 
 ## 推奨設定
 
+### Ollama ホスト側（OS 環境変数として設定）
+
 ```env
-OLLAMA_MODEL=qwen3.6:27b
 OLLAMA_KEEP_ALIVE=24h
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_CONTEXT_LENGTH=16384
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
+```
+
+### Bot の `.env`
+
+```env
+OLLAMA_MODEL=qwen3.6:27b
 OLLAMA_PREWARM_ENABLED=true
 OLLAMA_PREWARM_PROMPT=こんにちは。準備ができたら一言だけ返答してください。
 OLLAMA_TIMEOUT_SECONDS=180
@@ -71,27 +78,33 @@ Gemma 4 26B 構成より余裕が大きく、シングルモデル構成では `
 
 `qwen3.6:latest` は約 `24GB` と案内されており、RTX 3090 ではかなりタイトです。KV キャッシュを最小化した構成で試せますが、VRAM ギリギリになります。
 
+Ollama ホスト側：
+
 ```env
-OLLAMA_MODEL=qwen3.6
 OLLAMA_KEEP_ALIVE=24h
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
+```
+
+Bot の `.env`：
+
+```env
+OLLAMA_MODEL=qwen3.6
 OLLAMA_PREWARM_ENABLED=true
 OLLAMA_TIMEOUT_SECONDS=240
 ```
 
 ## モデル設定の考え方
 
-量子化設定は `docker-compose.yml` ではなく、モデルタグまたは `Modelfile` 側で管理します。`qwen3.6:27b` も `qwen3.6:latest` も Ollama 側の公開モデル実体として `Q4_K_M` が使われます。別の量子化を使いたい場合は、専用タグまたは独自 `Modelfile` を使う想定です。
+量子化設定はモデルタグまたは `Modelfile` 側で管理します。`qwen3.6:27b` も `qwen3.6:latest` も Ollama 側の公開モデル実体として `Q4_K_M` が使われます。別の量子化を使いたい場合は、専用タグまたは独自 `Modelfile` を使う想定です。
 
 ## 確認コマンド
 
 ```powershell
-docker compose exec ollama ollama list
-docker compose exec ollama ollama show qwen3.6:27b
-docker compose exec ollama ollama ps
-docker compose exec ollama nvidia-smi
-docker compose logs -f ollama-init
+ollama list
+ollama show qwen3.6:27b
+ollama ps
+nvidia-smi
 ```

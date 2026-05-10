@@ -149,13 +149,9 @@
 ## 設定
 - `DISCORD_BOT_TOKEN`: Discord bot token。必須。
 - `DISCORD_MENTION_RESPONSE`: 本文が空の mention を受けたときの案内文。
-- `OLLAMA_BASE_URL`: Ollama API のベース URL。Docker Compose 前提の既定値は `http://ollama:11434`。
+- `OLLAMA_BASE_URL`: Ollama API のベース URL。ホストで Ollama を起動している場合の既定値は `http://host.docker.internal:11434`。
 - `OLLAMA_MODEL`: 利用する Ollama モデル名。例: `qwen3.6:27b`, `gemma4:26b`。
 - `OLLAMA_KEEP_ALIVE`: Ollama 側でモデルを保持する時間。
-- `OLLAMA_NUM_PARALLEL`: Ollama 側の並列設定。
-- `OLLAMA_CONTEXT_LENGTH`: Ollama 側のコンテキスト長設定。
-- `OLLAMA_FLASH_ATTENTION`: Flash Attention 利用設定。
-- `OLLAMA_GPU_LAYERS`: GPU に配置するレイヤー設定。
 - `OLLAMA_PREWARM_ENABLED`: 起動前に prewarm を行うかどうか。
 - `OLLAMA_PREWARM_PROMPT`: prewarm 用プロンプト。
 - `SYSTEM_PROMPT`: 既定のシステムプロンプト。

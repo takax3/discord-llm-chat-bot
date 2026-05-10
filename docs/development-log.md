@@ -281,6 +281,30 @@ Stage 1・Stage 2 の所要時間計算（ISO 8601 Z サフィックス文字列
 
 ---
 
+## Ollama のホスト運用への切り替え
+
+docker-compose.yml から `ollama` サービス・`ollama-init` サービス・`ollama-data` ボリュームをすべて削除し、Bot コンテナのみの構成に移行した。
+
+### 変更前の構成
+
+- `discordbot` / `ollama` / `ollama-init` の 3 サービス構成
+- Bot からは `http://ollama:11434`（Docker 内部 DNS）で Ollama に接続
+- docker-compose.yml の `environment` ブロックに `OLLAMA_BASE_URL=http://ollama:11434` をハードコードしていた
+- `OLLAMA_KEEP_ALIVE` / `OLLAMA_NUM_PARALLEL` / `OLLAMA_CONTEXT_LENGTH` / `OLLAMA_FLASH_ATTENTION` / `OLLAMA_GPU_LAYERS` を Ollama コンテナへ渡す環境変数として `.env` に管理していた
+
+### 変更後の構成
+
+- `discordbot` サービスのみ
+- Ollama はホスト上で直接起動し、Bot コンテナが `host.docker.internal:11434` 経由で接続する
+- `OLLAMA_BASE_URL` は `.env` で管理し、既定値を `http://host.docker.internal:11434` に変更
+- Ollama コンテナへ渡す専用の環境変数（`OLLAMA_NUM_PARALLEL` 等）は Ollama のホスト設定で直接管理するため `.env` から削除
+
+### 判断の背景
+
+Ollama をコンテナで管理すると、NVIDIA Container Toolkit のバージョン依存・GPU device reservation の設定負荷・コンテナ内 NVML 経由の電力計測の制限などが生じる。ホスト上の Ollama に接続する構成はセットアップが単純で、GPU ドライバや NVML のホスト側設定をそのまま活かせる利点がある。
+
+---
+
 ## GPU 消費電力リアルタイム計測の追加
 
 推論ターン中（キュー通過後〜返答送信完了まで）の GPU 消費電力を 1 秒おきにサンプリングし、平均電力と推定消費エネルギーを `inference_logs` に記録するようにした。

@@ -10,70 +10,9 @@ services:
     environment:
       DATA_DIR: /app/data
       SQLITE_PATH: /app/data/discordbot.db
-      OLLAMA_BASE_URL: http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
-      ollama-init:
-        condition: service_completed_successfully
     volumes:
       - discordbot-data:/app/data
     stop_grace_period: 30s
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: discord-llm-chat-bot-ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    env_file:
-      - .env
-    environment:
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
-      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-32768}
-      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}
-      OLLAMA_GPU_LAYERS: ${OLLAMA_GPU_LAYERS:-100}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    volumes:
-      - ollama-data:/root/.ollama
-    stop_grace_period: 30s
-
-  ollama-init:
-    image: curlimages/curl:latest
-    container_name: discord-llm-chat-bot-ollama-init
-    restart: "no"
-    env_file:
-      - .env
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint:
-      - sh
-      - -c
-      - |
-        MODEL=$${OLLAMA_MODEL:-gemma4:26b}
-        echo "Pulling model: $$MODEL ..."
-        curl -sf -X POST http://ollama:11434/api/pull -H "Content-Type: application/json" -d "{\"name\":\"$$MODEL\"}"
-        ROUTER=$${OLLAMA_ROUTER_MODEL:-}
-        if [ -n "$$ROUTER" ] && [ "$$ROUTER" != "$$MODEL" ]; then
-          echo "Pulling router model: $$ROUTER ..."
-          curl -sf -X POST http://ollama:11434/api/pull -H "Content-Type: application/json" -d "{\"name\":\"$$ROUTER\"}"
-        fi
-        echo "Done."
-
 volumes:
   discordbot-data:
-  ollama-data:

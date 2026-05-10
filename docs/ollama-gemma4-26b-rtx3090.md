@@ -6,7 +6,7 @@
 
 - GPU: `RTX 3090 24GB`
 - 用途: Discord 上の日本語チャットボット
-- 実行基盤: `Ollama + Docker Compose`
+- 実行基盤: `Ollama（ホスト）+ Docker Compose（Bot のみ）`
 - モデル: `gemma4:26b`
 
 ## VRAM の内訳（参考）
@@ -24,13 +24,20 @@
 
 ## 推奨設定
 
+### Ollama ホスト側（OS 環境変数として設定）
+
 ```env
-OLLAMA_MODEL=gemma4:26b
 OLLAMA_KEEP_ALIVE=24h
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_CONTEXT_LENGTH=8192
 OLLAMA_FLASH_ATTENTION=1
 OLLAMA_GPU_LAYERS=100
+```
+
+### Bot の `.env`
+
+```env
+OLLAMA_MODEL=gemma4:26b
 OLLAMA_TIMEOUT_SECONDS=180
 ```
 
@@ -59,15 +66,14 @@ OLLAMA_TIMEOUT_SECONDS=180
 
 ## 運用メモ
 
-- 初回起動時は `ollama-init` が `OLLAMA_MODEL` のモデルを pull します。
-- `docker compose exec ollama ollama ps` でモデルが VRAM に乗っているか確認できます。
+- 初回起動前に `ollama pull gemma4:26b` でモデルを取得しておきます。
+- `ollama ps` でモデルが VRAM に乗っているか確認できます。
 - VRAM が足りない場合は `OLLAMA_CONTEXT_LENGTH` を下げるか、`OLLAMA_GPU_LAYERS` を減らして CPU にオフロードします。
 
 ## 確認コマンド
 
 ```powershell
-docker compose exec ollama ollama list
-docker compose exec ollama ollama ps
-docker compose exec ollama nvidia-smi
-docker compose logs -f ollama-init
+ollama list
+ollama ps
+nvidia-smi
 ```
