@@ -50,7 +50,7 @@ src/discordbot/
 7. （Stage 1 / `WEB_SEARCH_ENABLED=true` のとき）検索要否を判定する。
    - `search_decision_service.decide()` がメインモデルへ 1 回の JSON 呼び出しで判定とクエリ生成を実施（「判定中…」を表示）。
    - 複数クエリが返された場合は `brave_search_client` を並列実行し、結果を Stage 2 コンテキストに追加する。
-8. （Stage 2）`ollama_client` が利用モデルへ最終回答を問い合わせる。
+8. （Stage 2）`ollama_client.generate_reply()` が利用モデルへ最終回答を問い合わせる。
 9. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
 10. 完了後に入出力を SQLite へ保存する。
 11. `inference_log_repository` が推論ログ（タイムスタンプ 8 点・トークン数・検索クエリ数・エラーフラグ・GPU 消費電力/エネルギー）を `inference_logs` テーブルへ保存する。
@@ -62,8 +62,8 @@ src/discordbot/
 ### `/stats`
 1. Discord integration が slash command を受信する。
 2. `inference_log_repository.fetch_last_by_channel(channel_id)` で当該チャンネルの最新ログを 1 件取得する。
-3. ログが存在しない場合は「このチャンネルにはまだ推論ログがありません。」を `ephemeral=True` で返す。
-4. ログが存在する場合、`_elapsed_seconds(start, end)` ヘルパーで所要時間を計算し、Stage 1・検索クエリ数・Stage 2 の統計を `ephemeral=True` で返す。
+3. ログが存在しない場合は「このチャンネルにはまだ推論ログがありません。」をチャンネル全体へ返す。
+4. ログが存在する場合、`_elapsed_seconds(start, end)` ヘルパーで所要時間を計算し、Stage 1・検索クエリ数・Stage 2 の統計をチャンネル全体へ返す。
 
 ## 管理コマンドフロー（未実装）
 1. Discord integration が slash command を受信する。

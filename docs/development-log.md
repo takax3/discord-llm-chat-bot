@@ -341,6 +341,22 @@ LLM がHTML タグや Markdown テーブルなど Discord でレンダリング�
 
 ---
 
+## Ollama ストリーミング対応の試行と廃止
+
+Stage 2 の最終回答生成をストリーミングに切り替えることを試みたが、最終的に廃止してバッチ取得（`generate_reply()`）に戻した。
+
+### 廃止理由
+
+Discord のメッセージ edit レート制限（目安 5 回/5 秒）が低く、Ollama のトークン生成速度と表示更新速度が合わず、チラつくような違和感が出た。更新間隔を広げると今度は「逐次表示」の意味がなくなるため、ストリーミングの UX メリットが得られないと判断した。
+
+### 試行時の実装メモ
+
+- `OllamaStreamChunk`（`delta` / `is_done` / token stats）と `stream_generate_reply()` 非同期ジェネレータを実装。
+- urllib のブロッキング I/O は `asyncio.to_thread` で別スレッドに委ね、`asyncio.Queue` + `loop.call_soon_threadsafe` でジェネレータへ橋渡しする構成を取った。
+- 早期終了時に `finally` ブロックが `await thread_task` でブロックし、Ollama が生成し終わるまで推論が止まらない問題が発生した（`threading.Event` + `resp.close()` で対処可能だったが、根本の UX 問題が解決しないため廃止した）。
+
+---
+
 ## GPU 消費電力リアルタイム計測の追加
 
 推論ターン中（キュー通過後〜返答送信完了まで）の GPU 消費電力を 1 秒おきにサンプリングし、平均電力と推定消費エネルギーを `inference_logs` に記録するようにした。

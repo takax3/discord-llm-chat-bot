@@ -388,7 +388,7 @@ class DiscordBotClient(discord.Client):
                         )
                     elif show_steps:
                         completed_lines.append(format_message("search_not_needed"))
-                # Stage 2: 常にメインモデルで最終回答を生成（推論中を表示）
+                # Stage 2: メインモデルが最終回答を生成（推論中を表示）
                 await sent_message.edit(
                     content=_with_pending(format_message("inferring")), suppress=True
                 )

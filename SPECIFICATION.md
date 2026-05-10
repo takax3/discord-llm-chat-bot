@@ -163,7 +163,6 @@
 - `MAX_HISTORY_MESSAGES`: 会話コンテキストに含める最大メッセージ数。
 - `MAX_RESPONSE_CHARS`: Discord 返信の最大文字数。
 - `SHOW_STEPS`: 推論進捗ステップを積み重ねて表示するかどうか。`true` にすると判定・検索・推論の完了を順に表示し、最終応答の前に残す。`false`（既定）では途中ステップを都度置き換え、最終応答のみを残す。
-- `STREAMING_UPDATE_INTERVAL_MS`: 段階表示時の更新間隔。
 - `OLLAMA_TIMEOUT_SECONDS`: Ollama 応答待機タイムアウト。
 - `VISION_ENABLED`: vision 対応モデルで画像添付入力を有効にするか。
 - `VISION_IMAGE_ONLY_PROMPT`: 画像のみ添付されて本文がないときに使う既定プロンプト。
