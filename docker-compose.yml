@@ -13,6 +13,13 @@ services:
     volumes:
       - discordbot-data:/app/data
     stop_grace_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   discordbot-data:

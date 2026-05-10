@@ -298,10 +298,11 @@ docker-compose.yml から `ollama` サービス・`ollama-init` サービス・`
 - Ollama はホスト上で直接起動し、Bot コンテナが `host.docker.internal:11434` 経由で接続する
 - `OLLAMA_BASE_URL` は `.env` で管理し、既定値を `http://host.docker.internal:11434` に変更
 - Ollama コンテナへ渡す専用の環境変数（`OLLAMA_NUM_PARALLEL` 等）は Ollama のホスト設定で直接管理するため `.env` から削除
+- `discordbot` サービスに `deploy.resources.reservations.devices`（NVIDIA GPU）を追加し、`pynvml` 経由の GPU 消費電力計測を有効化（NVIDIA Container Toolkit が必要）
 
 ### 判断の背景
 
-Ollama をコンテナで管理すると、NVIDIA Container Toolkit のバージョン依存・GPU device reservation の設定負荷・コンテナ内 NVML 経由の電力計測の制限などが生じる。ホスト上の Ollama に接続する構成はセットアップが単純で、GPU ドライバや NVML のホスト側設定をそのまま活かせる利点がある。
+Ollama をコンテナで管理すると、モデルストレージの volume 管理・Ollama サーバーのチューニング設定（`OLLAMA_CONTEXT_LENGTH` 等）の docker-compose 管理・`ollama-init` によるモデル pull の手順が必要になり、構成が複雑になる。ホスト上の Ollama に接続する構成は Ollama の管理を OS 側に任せられるため、docker-compose がシンプルになる。GPU 消費電力の計測（`pynvml` / NVML）は引き続き `discordbot` コンテナ内から行うため、GPU device reservation は Ollama 分ではなく Bot コンテナ側に設定している。
 
 ---
 

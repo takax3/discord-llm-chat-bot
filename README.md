@@ -33,7 +33,9 @@ Discord 上で動作する、Ollama ベースのローカル LLM チャットボ
 
 ## Docker での起動
 
-前提: Ollama をホスト上で起動しておく必要があります。Bot コンテナは `host.docker.internal:11434` 経由でホストの Ollama に接続します。
+前提:
+- Ollama をホスト上で起動しておく必要があります。Bot コンテナは `host.docker.internal:11434` 経由でホストの Ollama に接続します。
+- GPU 消費電力を記録する場合は、ホストに NVIDIA Container Toolkit が必要です。未インストールの場合も Bot 本体は起動しますが、`inference_logs` の `gpu_avg_watts` / `gpu_energy_joules` が `NULL` になります。
 
 1. `.env.example` を `.env` としてコピーし、必要な値を設定します。
    - `DISCORD_BOT_TOKEN`: 必須。
