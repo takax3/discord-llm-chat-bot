@@ -115,7 +115,7 @@ class DiscordBotClient(discord.Client):
         self._is_closing = False
         self._ready_notified = False
         self._inference_queue = InferenceQueue()
-        self._presence_service = PresenceService()
+        self._presence_service = PresenceService(model=config.ollama_model)
         self._search_decision_service = SearchDecisionService(
             ollama_client=ollama_client,
         )
@@ -168,6 +168,10 @@ class DiscordBotClient(discord.Client):
 
             if log.reply_sent_at is not None:
                 lines.append(f"返信完了: {log.reply_sent_at}")
+
+            if log.gpu_avg_watts is not None:
+                energy = f" / {log.gpu_energy_joules / 3_600_000:.5f} kWh" if log.gpu_energy_joules is not None else ""
+                lines.append(f"GPU 消費電力: {log.gpu_avg_watts:.1f} W{energy}")
 
             await interaction.response.send_message("\n".join(lines))
 

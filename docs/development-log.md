@@ -77,6 +77,10 @@ Rules:
 - Reply concisely unless the user explicitly asks for detail.
 - Reply in Japanese unless the user explicitly asks for another language.
 - Keep your response within {MAX_RESPONSE_CHARS} characters.
+- Format responses using Discord Markdown only.
+  Supported: **bold**, *italic*, __underline__, ~~strikethrough~~, `inline code`, ```code blocks```, > blockquotes, - or * bullet lists, numbered lists, # / ## / ### headings.
+  Not supported (do not use): HTML tags, --- horizontal rules, Markdown tables, task lists (- [ ]), setext headings (underline-style), reference-style links, image embeds.
+- Use ## or ### headings only for long structured responses. Avoid headings for short or conversational replies.
 ```
 
 > 検索の判断は Stage 1 が担うため、メインプロンプトに検索指示は含めない（責務分離）。
@@ -303,6 +307,37 @@ docker-compose.yml から `ollama` サービス・`ollama-init` サービス・`
 ### 判断の背景
 
 Ollama をコンテナで管理すると、モデルストレージの volume 管理・Ollama サーバーのチューニング設定（`OLLAMA_CONTEXT_LENGTH` 等）の docker-compose 管理・`ollama-init` によるモデル pull の手順が必要になり、構成が複雑になる。ホスト上の Ollama に接続する構成は Ollama の管理を OS 側に任せられるため、docker-compose がシンプルになる。GPU 消費電力の計測（`pynvml` / NVML）は引き続き `discordbot` コンテナ内から行うため、GPU device reservation は Ollama 分ではなく Bot コンテナ側に設定している。
+
+---
+
+## Discord Markdown 最適化
+
+LLM がHTML タグや Markdown テーブルなど Discord でレンダリングされない構文を出力することがあった。この問題へのアプローチとして、後処理（出力後の文字列変換）とシステムプロンプト追記の 2 案を検討した。
+
+### 後処理を採用しなかった理由
+
+- 変換ルールが複雑になる（HTML タグの除去・テーブルの箇条書き変換等）と、LLM の意図した構造が壊れるリスクがある。
+- 変換漏れや誤変換のデバッグコストが高い。
+- 根本原因（LLM の出力傾向）を直さないため、別の非対応構文が出現するたびに都度対処が必要になる。
+
+### システムプロンプト追記を採用した理由
+
+- 使える構文と使えない構文を明示するだけで、十分な能力のモデルであれば遵守できる。
+- 変換ロジックを持たないためコードが増えない。
+- ルールの追加・修正が `context_builder.py` の 1 箇所で完結する。
+
+### 追記したルール
+
+`_build_system_prompt()` の Rules ブロックに以下を追加した。
+
+```
+- Format responses using Discord Markdown only.
+  Supported: **bold**, *italic*, __underline__, ~~strikethrough~~, `inline code`, ```code blocks```, > blockquotes, - or * bullet lists, numbered lists, # / ## / ### headings.
+  Not supported (do not use): HTML tags, --- horizontal rules, Markdown tables, task lists (- [ ]), setext headings (underline-style), reference-style links, image embeds.
+- Use ## or ### headings only for long structured responses. Avoid headings for short or conversational replies.
+```
+
+見出しルールを分けたのは、短い会話でも見出しを使うと不自然に装飾過剰になる挙動が確認されたため。
 
 ---
 

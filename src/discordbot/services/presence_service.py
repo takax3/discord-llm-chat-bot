@@ -4,7 +4,8 @@ import discord
 
 
 class PresenceService:
-    def __init__(self) -> None:
+    def __init__(self, *, model: str = "") -> None:
+        self._model = model
         self._queue_count = 0
         self._tokens_per_second: float | None = None
 
@@ -18,7 +19,8 @@ class PresenceService:
         speed_text = "-- tok/s"
         if self._tokens_per_second is not None:
             speed_text = f"{self._tokens_per_second:.1f} tok/s"
-        return f"Queue: {self._queue_count} | {speed_text}"
+        model_text = f"{self._model} | " if self._model else ""
+        return f"{model_text}Queue: {self._queue_count} | {speed_text}"
 
     def build_activity(self) -> discord.BaseActivity:
         return discord.Game(name=self.build_status_text())

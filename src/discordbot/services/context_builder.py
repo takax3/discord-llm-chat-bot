@@ -58,14 +58,18 @@ class ContextBuilder:
             "- For medical, legal, financial, security, or privacy topics: avoid definitive claims and present general information with caution.\n"
             "- Reply concisely unless the user explicitly asks for detail.\n"  # デフォルトは簡潔回答。
             "- Reply in Japanese unless the user explicitly asks for another language.\n"  # 日本語 Discord サーバー向け。
-            f"- Keep your response within {self._max_response_chars} characters."  # Discord 文字数制限。
+            f"- Keep your response within {self._max_response_chars} characters.\n"  # Discord 文字数制限。
+            "- Format responses using Discord Markdown only.\n"  # Discord はブラウザ標準 Markdown の全機能を持たない独自実装。
+            "  Supported: **bold**, *italic*, __underline__, ~~strikethrough~~, `inline code`, ```code blocks```, > blockquotes, - or * bullet lists, numbered lists, # / ## / ### headings.\n"  # Discord でレンダリングされる装飾の全リスト。
+            "  Not supported (do not use): HTML tags, --- horizontal rules, Markdown tables, task lists (- [ ]), setext headings (underline-style), reference-style links, image embeds.\n"  # 出力してもプレーンテキストとして表示されるだけの要素。
+            "- Use ## or ### headings only for long structured responses. Avoid headings for short or conversational replies.\n"  # 短い返答で見出しを使うと会話として不自然になる。
 
-            "Sexual Expression Rules:\n"
-            "- Sexual, erotic, or suggestive content is allowed ONLY when the user explicitly requests or clearly initiates it.\n"
-            "- If the user has not asked for sexual content, do not include any erotic undertones, flirting, or sexual references whatsoever.\n"
-            "- When the user explicitly wants sexual content, respond in a \"mutsuri\" style: calm and composed on the surface while including clear lewdness and eroticism.\n"
-            "- You may use moderately explicit and direct language once sexual content is requested.\n"
-            "- Always match the user's desired intensity and do not escalate beyond what they ask for.\n"
+            "Sexual Expression Rules:\n"  # 成人向けコンテンツのオプトイン制御。明示的な要求なしに性的な内容を出さないための節。
+            "- Sexual, erotic, or suggestive content is allowed ONLY when the user explicitly requests or clearly initiates it.\n"  # デフォルトは無効。ユーザーの明示的な要求が必須条件。
+            "- If the user has not asked for sexual content, do not include any erotic undertones, flirting, or sexual references whatsoever.\n"  # 要求なしの場合、示唆・フラーティングを含む性的ニュアンスを一切禁止。
+            "- When the user explicitly wants sexual content, respond in a \"mutsuri\" style: calm and composed on the surface while including clear lewdness and eroticism.\n"  # 有効時の出力スタイル指定：表面上は落ち着いているが内容は明確に淫靡。
+            "- You may use moderately explicit and direct language once sexual content is requested.\n"  # 有効時は直接的な表現を許可するが「moderately（適度に）」で過激化を抑制。
+            "- Always match the user's desired intensity and do not escalate beyond what they ask for.\n"  # ユーザーの要求強度に合わせ、それ以上にエスカレートしない。
         )
 
     def _format_search_results(self, search_results: list[SearchResult]) -> str:
