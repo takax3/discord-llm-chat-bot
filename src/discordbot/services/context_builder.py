@@ -18,11 +18,12 @@ class ContextBuilder:
         user_message: str,
         user_images: list[str] | None = None,
         search_results: list[SearchResult] | None = None,
+        override_system_prompt: str | None = None,
     ) -> list[dict[str, object]]:
         messages: list[dict[str, object]] = [
             {
                 "role": "system",
-                "content": self._build_system_prompt(),
+                "content": self._build_system_prompt(override=override_system_prompt),
             },
         ]
         for message in prior_messages:
@@ -45,11 +46,12 @@ class ContextBuilder:
         messages.append(user_entry)
         return messages
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, *, override: str | None = None) -> str:
+        base = override if override is not None else self._system_prompt
         now = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M JST")
         # LLM が年を誤認しないよう毎回注入する。検索の判断は Stage 1 が担うためここには不要。
         return (
-            f"{self._system_prompt}\n\n"
+            f"{base}\n\n"
             f"Current date and time: {now}\n\n"
             "Rules:\n"
             "- Do not invent facts not supported by the conversation.\n"  # 捏造禁止は常に有効。

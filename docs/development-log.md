@@ -357,6 +357,47 @@ Discord のメッセージ edit レート制限（目安 5 回/5 秒）が低く
 
 ---
 
+## プリセットプロンプト機能の追加
+
+キャラクターなりきりなど、事前に名前付きシステムプロンプトを登録・管理する `/preset` コマンドグループを実装した。
+
+### 設計の核心
+
+**スコープ: ギルドごと / 権限なし（全員操作可）**
+
+プリセットはギルドに紐付き、特定のサーバー設定（system_prompt）を書き換えるのではなく、reply チェーン単位で適用する。`/preset use` が投稿する anchor メッセージに対して返信し続けることでプリセットが有効になる。ギルド全体の system_prompt は変更されない。
+
+**適用方式: anchor メッセージ + `role="system_anchor"`**
+
+`conversation_messages` に `role="system_anchor"` という新しい role 値を追加した。`/preset use` 実行時にプリセットのプロンプト全文を `content` として anchor メッセージを保存する。`on_message` でリプライチェーンを取得後、先頭要素の role が `"system_anchor"` であれば `content` を `override_system_prompt` として抽出し、`context_builder.build_messages()` に渡す仕組み。
+
+プリセット削除後も進行中の会話は影響を受けない。anchor の `content` を直接参照しているため、`prompt_presets` テーブルの削除と無関係に既存チェーンが動作し続ける。
+
+**ルール群は常に付加**
+
+`_build_system_prompt(override=...)` は `override` が指定された場合でも Discord Markdown ルール・ハルシネーション抑制・日時注入等のルール群を必ず付加する。キャラクタープリセットであっても安全上のルールは除去しない。
+
+### `/preset use` の anchor 保存方法
+
+当初 `interaction.channel.send()` で anchor を送信し、その戻り値 `discord.Message` から `id` を取得していたが、`interaction.response.send_message()` + `interaction.original_response()` に変更して 1 メッセージに統合した。ephemeral 確認 + 公開 anchor の 2 メッセージをユーザーへの混乱なく 1 メッセージにまとめられる。
+
+### モーダル vs 返信ベースの入力
+
+`prompt` 引数を省略したときの入力方式を検討した。
+
+| 方式 | 利点 | 欠点 |
+|---|---|---|
+| 返信ベース | 実装がシンプル | チャンネルに入力要求メッセージが残る。2000 文字制限 |
+| Discord モーダル | チャンネルが汚れない。4000 文字まで入力可。複数行テキストエリアで書きやすい | 実装が若干複雑 |
+
+キャラクタープロンプトは長くなりがちなため、返信ベースで実装後にモーダルへ変更した。`discord.ui.Modal` + `discord.ui.TextInput(style=TextStyle.paragraph)` で `required=True, max_length=4000` とし、ラベルにプリセット名を表示している。
+
+### `_is_reply_to_bot_message` の変更
+
+`system_anchor` role を Bot が投稿するメッセージとして認識させるため、判定条件を `role == "assistant"` から `role in ("assistant", "system_anchor")` に変更した。これにより anchor メッセージへの返信が通常の Bot 返信への返信と同様に会話継続として処理される。
+
+---
+
 ## GPU 消費電力リアルタイム計測の追加
 
 推論ターン中（キュー通過後〜返答送信完了まで）の GPU 消費電力を 1 秒おきにサンプリングし、平均電力と推定消費エネルギーを `inference_logs` に記録するようにした。

@@ -21,6 +21,7 @@ src/discordbot/
     search_decision.py
     search_result.py
     inference_log.py
+    prompt_preset.py
   integrations/
     discord_client.py
     ollama_client.py
@@ -38,22 +39,25 @@ src/discordbot/
     conversation_repository.py
     settings_repository.py
     inference_log_repository.py
+    prompt_preset_repository.py
 ```
 
 ## リクエスト処理フロー
 1. Discord integration がメッセージイベントを受信する。
-2. mention もしくは Bot 返信への reply でない通常メッセージは無視する。
+2. mention もしくは Bot 返信（`role="assistant"` または `role="system_anchor"`）への reply でない通常メッセージは無視する。
 3. `settings_repository` がサーバー設定と利用制限を確認する。
-4. `conversation_repository` と `context_builder` が SQLite 履歴を集めて LLM 入力へ整形する。
-5. `chat_service` が待機メッセージ `Waiting... (Queue ahead: N)` を先に返す。
-6. `inference_queue` が推論を直列化し、キュー待ち件数を管理する。
-7. （Stage 1 / `WEB_SEARCH_ENABLED=true` のとき）検索要否を判定する。
+4. `conversation_repository.get_reply_chain()` で SQLite 履歴を取得する。
+5. reply チェーンの先頭要素が `role="system_anchor"` であれば、その `content` を `override_system_prompt` として抽出し、リストから除外する。
+6. `context_builder.build_messages()` が履歴を LLM 入力へ整形する。`override_system_prompt` が指定された場合は `SYSTEM_PROMPT` の代わりに使用する（ルール群は常に付加）。
+7. `chat_service` が待機メッセージ `Waiting... (Queue ahead: N)` を先に返す。
+8. `inference_queue` が推論を直列化し、キュー待ち件数を管理する。
+9. （Stage 1 / `WEB_SEARCH_ENABLED=true` のとき）検索要否を判定する。
    - `search_decision_service.decide()` がメインモデルへ 1 回の JSON 呼び出しで判定とクエリ生成を実施（「判定中…」を表示）。
    - 複数クエリが返された場合は `brave_search_client` を並列実行し、結果を Stage 2 コンテキストに追加する。
-8. （Stage 2）`ollama_client.generate_reply()` が利用モデルへ最終回答を問い合わせる。
-9. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
-10. 完了後に入出力を SQLite へ保存する。
-11. `inference_log_repository` が推論ログ（タイムスタンプ 8 点・トークン数・検索クエリ数・エラーフラグ・GPU 消費電力/エネルギー）を `inference_logs` テーブルへ保存する。
+10. （Stage 2）`ollama_client.generate_reply()` が利用モデルへ最終回答を問い合わせる。
+11. `presence_service` がキュー数と直近のトークンスピードをもとにステータス文言を組み立てる。
+12. 完了後に入出力を SQLite へ保存する。
+13. `inference_log_repository` が推論ログ（タイムスタンプ 8 点・トークン数・検索クエリ数・エラーフラグ・GPU 消費電力/エネルギー）を `inference_logs` テーブルへ保存する。
 
 ## スラッシュコマンドフロー
 
@@ -64,6 +68,29 @@ src/discordbot/
 2. `inference_log_repository.fetch_last_by_channel(channel_id)` で当該チャンネルの最新ログを 1 件取得する。
 3. ログが存在しない場合は「このチャンネルにはまだ推論ログがありません。」をチャンネル全体へ返す。
 4. ログが存在する場合、`_elapsed_seconds(start, end)` ヘルパーで所要時間を計算し、Stage 1・検索クエリ数・Stage 2 の統計をチャンネル全体へ返す。
+
+### `/preset` コマンドグループ
+
+`_register_slash_commands()` 内で `app_commands.Group` を定義し `tree.add_command()` で登録する。
+
+#### `/preset add` / `/preset update`
+1. `prompt` 引数が指定されている場合: `preset_repository.save()` で即時保存し、成功メッセージを全体送信する。
+2. `prompt` 引数が省略された場合: `PromptInputModal`（`discord.ui.Modal`）を表示する。モーダル送信後に `on_submit()` 内で保存し、成功メッセージを全体送信する。
+3. `add` のとき既存名の場合は ephemeral エラー。`update` のとき存在しない名前は ephemeral エラー。
+
+#### `/preset delete` / `/preset show` / `/preset use`
+1. `preset_repository.get_by_name()` でプリセットを取得する（存在しない場合は ephemeral エラー）。
+2. `delete`: `preset_repository.delete()` で削除し、成功メッセージを全体送信する。
+3. `show`: プロンプト内容を ephemeral 送信する（2000 文字超は末尾省略）。
+4. `use`: `interaction.response.send_message()` で anchor メッセージをチャンネル全体へ送信 → `interaction.original_response()` でメッセージを取得 → `conversation_messages` に `role="system_anchor"`, `content=<プリセットのプロンプト全文>` で保存する。
+
+#### `/preset list`
+1. `preset_repository.list_presets()` でギルドの全プリセットを名前順に取得する。
+2. 件数 0 の場合は ephemeral でその旨を返す。
+3. 件数 1 以上の場合は名前一覧を ephemeral 送信する。
+
+#### autocomplete
+`update` / `delete` / `show` / `use` の `name` 引数に `@app_commands.autocomplete` を設定する。`_preset_name_autocomplete()` がギルドの登録済みプリセット名を返す（入力文字列の部分一致絞り込み、最大 25 件）。
 
 ## 管理コマンドフロー（未実装）
 1. Discord integration が slash command を受信する。

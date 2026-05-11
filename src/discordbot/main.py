@@ -14,6 +14,7 @@ from discordbot.services.gpu_power_sampler import GpuPowerSampler
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.database import initialize_database
 from discordbot.storage.inference_log_repository import InferenceLogRepository
+from discordbot.storage.prompt_preset_repository import PromptPresetRepository
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.version import get_app_version
 from discordbot.webhook_logging import DiscordWebhookHandler, DiscordWebhookNotifier
@@ -58,6 +59,7 @@ async def _run_bot(config: AppConfig, logger: logging.Logger) -> None:
     )
     conversation_repository = ConversationRepository(connection=database_connection)
     inference_log_repository = InferenceLogRepository(connection=database_connection)
+    preset_repository = PromptPresetRepository(connection=database_connection)
     gpu_power_sampler = GpuPowerSampler()
     ollama_client = OllamaClient.from_config(config)
     if config.ollama_prewarm_enabled:
@@ -79,6 +81,7 @@ async def _run_bot(config: AppConfig, logger: logging.Logger) -> None:
         conversation_repository=conversation_repository,
         settings_repository=settings_repository,
         inference_log_repository=inference_log_repository,
+        preset_repository=preset_repository,
         gpu_power_sampler=gpu_power_sampler,
         webhook_notifier=webhook_notifier,
         app_version=APP_VERSION,

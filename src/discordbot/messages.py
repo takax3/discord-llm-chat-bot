@@ -31,6 +31,16 @@ MESSAGES = {
     "conversation_message_saved": "Saved conversation message discord_message_id={message_id} role={role}",
     "reply_sent": "Sent mention reply to message_id={message_id}",
 
+    # プリセットプロンプト操作。
+    "preset_added": "プリセット **{name}** を登録しました。",
+    "preset_updated": "プリセット **{name}** を更新しました。",
+    "preset_already_exists": "プリセット **{name}** はすでに存在します。更新するには `/preset update` を使用してください。",
+    "preset_deleted": "プリセット **{name}** を削除しました。",
+    "preset_not_found": "プリセット **{name}** は見つかりません。",
+    "preset_list_empty": "このサーバーに登録されたプリセットはありません。",
+    "preset_list_header": "登録済みプリセット一覧:\n",
+    "preset_anchor": "プリセット **{name}** を読み込みました。このメッセージへ返信してください。",
+
     # Presence / 状態更新。
     "presence_updated": "Updated presence status_text={status_text}",
     "presence_offline": "Presence set to offline",

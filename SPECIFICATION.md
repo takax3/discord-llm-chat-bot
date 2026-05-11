@@ -112,6 +112,41 @@
   ```
 - 登録方式: `setup_hook()` 内で `app_commands.CommandTree.sync()` を呼び出し、ボット起動時にグローバル登録する。
 
+### `/preset` スラッシュコマンドグループ
+
+- 目的: 名前付きシステムプロンプト（プリセット）をサーバーごとに登録・管理し、会話スレッド単位で適用する。
+- スコープ: ギルドごと。権限制限なし（全員操作可）。
+- サブコマンド一覧:
+
+| サブコマンド | 引数 | 応答 | 動作 |
+|---|---|---|---|
+| `add` | `name`（必須）, `prompt`（任意） | 成功: 全体表示 / エラー: ephemeral | 新規登録。既存名はエラー。`prompt` 省略時はモーダルで入力（最大 4000 文字） |
+| `update` | `name`（必須, autocomplete）, `prompt`（任意） | 成功: 全体表示 / エラー: ephemeral | 既存プリセット更新。存在しない名前はエラー。`prompt` 省略時はモーダルで入力 |
+| `delete` | `name`（必須, autocomplete） | 成功: 全体表示 / エラー: ephemeral | プリセット削除 |
+| `list` | なし | ephemeral | ギルドの全プリセット名を一覧表示 |
+| `show` | `name`（必須, autocomplete） | ephemeral | プロンプト内容を表示（2000 文字超は末尾を省略） |
+| `use` | `name`（必須, autocomplete） | 全体表示（anchor メッセージ） | anchor メッセージをチャンネルへ送信し `conversation_messages` に保存 |
+
+- `/preset use` の動作詳細:
+  1. プリセットを取得する（存在しない場合は ephemeral エラー）。
+  2. 「プリセット **{name}** を読み込みました。このメッセージへ返信してください。」を全体送信する。
+  3. 送信したメッセージを `conversation_messages` に `role="system_anchor"`, `content=<プリセットのプロンプト全文>` で保存する。
+  4. 以降このメッセージへの reply チェーンで会話すると、`context_builder` がプリセットのプロンプトを system_prompt として使用する。
+
+- プリセット適用のしくみ:
+  - `on_message` でリプライチェーンを取得後、先頭要素の `role` が `"system_anchor"` であれば `content` を `override_system_prompt` として抽出し、リストから除外する。
+  - `ContextBuilder.build_messages()` に `override_system_prompt` を渡し、`_build_system_prompt()` 内で `SYSTEM_PROMPT` の代わりに使用する。
+  - Discord Markdown ルール・ハルシネーション抑制等のルール群は `override_system_prompt` 使用時も常に付加する。
+  - プリセット削除後も anchor の `content` を直接参照するため、進行中の会話は影響を受けない。
+
+- autocomplete: `update` / `delete` / `show` / `use` の `name` 引数はギルドの登録済みプリセット名でオートコンプリートする（入力文字列による部分一致絞り込み、最大 25 件）。
+
+- モーダル入力仕様:
+  - `discord.ui.Modal` + `discord.ui.TextInput(style=TextStyle.paragraph)` を使用。
+  - テキストエリアのラベルにプリセット名を表示する（`「{name}」のプロンプト`）。
+  - `required=True`, `max_length=4000`。
+  - 送信後、`PromptPresetRepository.save()` で upsert し、成功メッセージを全体表示する。
+
 ### 管理用 slash command（未実装）
 - 目的: サーバーごとのモデル名、システムプロンプト、利用制限などの運用設定を管理する。
 - 入力:
@@ -204,9 +239,16 @@
   - `guild_id`
   - `channel_id`
   - `user_id`
-  - `role`
+  - `role`（`"user"` / `"assistant"` / `"system_anchor"`）
   - `content`
   - `created_at`
+- `prompt_presets`
+  - `id`
+  - `guild_id`
+  - `name`（ギルド内でユニーク）
+  - `prompt`
+  - `created_at`
+  - UNIQUE 制約: `(guild_id, name)`
 - `runtime_events`
   - `id`
   - `guild_id`
@@ -297,5 +339,7 @@
 - `storage/settings_repository.py`: サーバー設定保存。
 - `storage/conversation_repository.py`: 会話履歴保存。
 - `storage/inference_log_repository.py`: 推論ログ保存。
+- `storage/prompt_preset_repository.py`: プリセットプロンプト保存（save / delete / list / get_by_name）。
 - `storage/database.py`: SQLite 接続とスキーマ管理。
 - `domain/inference_log.py`: 推論ログのデータクラス。
+- `domain/prompt_preset.py`: プリセットプロンプトのデータクラス。

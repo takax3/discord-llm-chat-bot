@@ -23,6 +23,7 @@ from discordbot.services.presence_service import PresenceService
 from discordbot.services.search_decision_service import SearchDecisionService
 from discordbot.storage.conversation_repository import ConversationRepository
 from discordbot.storage.inference_log_repository import InferenceLogRepository
+from discordbot.storage.prompt_preset_repository import PromptPresetRepository
 from discordbot.storage.settings_repository import SettingsRepository
 from discordbot.webhook_logging import DiscordWebhookNotifier
 
@@ -36,6 +37,37 @@ def _elapsed_seconds(start: str | None, end: str | None) -> float | None:
     return (datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds()
 
 
+class PromptInputModal(discord.ui.Modal):
+    def __init__(
+        self,
+        *,
+        action: str,
+        guild_id: int,
+        name: str,
+        repository: PromptPresetRepository,
+    ) -> None:
+        super().__init__(title="プロンプトを入力")
+        self._action = action
+        self._guild_id = guild_id
+        self._name = name
+        self._repository = repository
+        self.prompt_input = discord.ui.TextInput(
+            label=f"「{name}」のプロンプト"[:45],
+            style=discord.TextStyle.paragraph,
+            placeholder="キャラクターの設定や話し方を入力してください",
+            required=True,
+            max_length=4000,
+        )
+        self.add_item(self.prompt_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        from discordbot.domain.prompt_preset import PromptPreset
+        prompt = self.prompt_input.value.strip()
+        self._repository.save(PromptPreset(guild_id=self._guild_id, name=self._name, prompt=prompt))
+        key = "preset_added" if self._action == "add" else "preset_updated"
+        await interaction.response.send_message(format_message(key, name=self._name))
+
+
 def build_discord_client(
     *,
     config: AppConfig,
@@ -44,6 +76,7 @@ def build_discord_client(
     conversation_repository: ConversationRepository,
     settings_repository: SettingsRepository,
     inference_log_repository: InferenceLogRepository,
+    preset_repository: PromptPresetRepository,
     gpu_power_sampler: GpuPowerSampler,
     webhook_notifier: DiscordWebhookNotifier,
     app_version: str,
@@ -74,6 +107,7 @@ def build_discord_client(
         conversation_repository=conversation_repository,
         settings_repository=settings_repository,
         inference_log_repository=inference_log_repository,
+        preset_repository=preset_repository,
         gpu_power_sampler=gpu_power_sampler,
         webhook_notifier=webhook_notifier,
         app_version=app_version,
@@ -93,6 +127,7 @@ class DiscordBotClient(discord.Client):
         conversation_repository: ConversationRepository,
         settings_repository: SettingsRepository,
         inference_log_repository: InferenceLogRepository,
+        preset_repository: PromptPresetRepository,
         gpu_power_sampler: GpuPowerSampler,
         webhook_notifier: DiscordWebhookNotifier,
         app_version: str,
@@ -108,6 +143,7 @@ class DiscordBotClient(discord.Client):
         self._conversation_repository = conversation_repository
         self._settings_repository = settings_repository
         self._inference_log_repository = inference_log_repository
+        self._preset_repository = preset_repository
         self._gpu_power_sampler = gpu_power_sampler
         self._webhook_notifier = webhook_notifier
         self._app_version = app_version
@@ -129,6 +165,139 @@ class DiscordBotClient(discord.Client):
         await self._tree.sync()
 
     def _register_slash_commands(self) -> None:
+        preset_group = app_commands.Group(name="preset", description="プリセットプロンプトの管理")
+
+        async def _preset_name_autocomplete(
+            interaction: discord.Interaction,
+            current: str,
+        ) -> list[app_commands.Choice[str]]:
+            if interaction.guild_id is None:
+                return []
+            presets = self._preset_repository.list_presets(guild_id=interaction.guild_id)
+            return [
+                app_commands.Choice(name=p.name, value=p.name)
+                for p in presets
+                if current.lower() in p.name.lower()
+            ][:25]
+
+        @preset_group.command(name="add", description="プリセットプロンプトを新規登録する")
+        @app_commands.describe(name="プリセット名", prompt="システムプロンプトの内容（省略すると返信で入力）")
+        async def preset_add(interaction: discord.Interaction, name: str, prompt: str | None = None) -> None:
+            from discordbot.domain.prompt_preset import PromptPreset
+            from discordbot.messages import format_message as _fmt
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            existing = self._preset_repository.get_by_name(guild_id=interaction.guild_id, name=name)
+            if existing is not None:
+                await interaction.response.send_message(_fmt("preset_already_exists", name=name), ephemeral=True)
+                return
+            if prompt is None:
+                await interaction.response.send_modal(
+                    PromptInputModal(action="add", guild_id=interaction.guild_id, name=name, repository=self._preset_repository)
+                )
+                return
+            self._preset_repository.save(PromptPreset(guild_id=interaction.guild_id, name=name, prompt=prompt))
+            await interaction.response.send_message(_fmt("preset_added", name=name))
+
+        @preset_group.command(name="update", description="既存のプリセットプロンプトを更新する")
+        @app_commands.describe(name="プリセット名", prompt="新しいシステムプロンプトの内容（省略すると返信で入力）")
+        @app_commands.autocomplete(name=_preset_name_autocomplete)
+        async def preset_update(interaction: discord.Interaction, name: str, prompt: str | None = None) -> None:
+            from discordbot.domain.prompt_preset import PromptPreset
+            from discordbot.messages import format_message as _fmt
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            existing = self._preset_repository.get_by_name(guild_id=interaction.guild_id, name=name)
+            if existing is None:
+                await interaction.response.send_message(_fmt("preset_not_found", name=name), ephemeral=True)
+                return
+            if prompt is None:
+                await interaction.response.send_modal(
+                    PromptInputModal(action="update", guild_id=interaction.guild_id, name=name, repository=self._preset_repository)
+                )
+                return
+            self._preset_repository.save(PromptPreset(guild_id=interaction.guild_id, name=name, prompt=prompt))
+            await interaction.response.send_message(_fmt("preset_updated", name=name))
+
+        @preset_group.command(name="delete", description="プリセットプロンプトを削除する")
+        @app_commands.describe(name="プリセット名")
+        @app_commands.autocomplete(name=_preset_name_autocomplete)
+        async def preset_delete(interaction: discord.Interaction, name: str) -> None:
+            from discordbot.messages import format_message as _fmt
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            deleted = self._preset_repository.delete(guild_id=interaction.guild_id, name=name)
+            if deleted:
+                await interaction.response.send_message(_fmt("preset_deleted", name=name))
+            else:
+                await interaction.response.send_message(_fmt("preset_not_found", name=name), ephemeral=True)
+
+        @preset_group.command(name="list", description="登録済みプリセット一覧を表示する")
+        async def preset_list(interaction: discord.Interaction) -> None:
+            from discordbot.messages import format_message as _fmt, MESSAGES
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            presets = self._preset_repository.list_presets(guild_id=interaction.guild_id)
+            if not presets:
+                await interaction.response.send_message(_fmt("preset_list_empty"), ephemeral=True)
+                return
+            lines = [MESSAGES["preset_list_header"]] + [f"- **{p.name}**" for p in presets]
+            await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+        @preset_group.command(name="show", description="プリセットの内容を表示する")
+        @app_commands.describe(name="プリセット名")
+        @app_commands.autocomplete(name=_preset_name_autocomplete)
+        async def preset_show(interaction: discord.Interaction, name: str) -> None:
+            from discordbot.messages import format_message as _fmt
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            preset = self._preset_repository.get_by_name(guild_id=interaction.guild_id, name=name)
+            if preset is None:
+                await interaction.response.send_message(_fmt("preset_not_found", name=name), ephemeral=True)
+                return
+            header = f"**{preset.name}**\n```\n"
+            footer = "\n```"
+            max_prompt = 2000 - len(header) - len(footer)
+            display = preset.prompt if len(preset.prompt) <= max_prompt else preset.prompt[:max_prompt - 1] + "…"
+            await interaction.response.send_message(header + display + footer, ephemeral=True)
+
+        @preset_group.command(name="use", description="プリセットを読み込み、anchor メッセージを送信する")
+        @app_commands.describe(name="プリセット名")
+        @app_commands.autocomplete(name=_preset_name_autocomplete)
+        async def preset_use(interaction: discord.Interaction, name: str) -> None:
+            from discordbot.messages import format_message as _fmt
+            if interaction.guild_id is None:
+                await interaction.response.send_message("サーバー内でのみ使用できます。", ephemeral=True)
+                return
+            if interaction.channel is None:
+                await interaction.response.send_message("チャンネル情報を取得できませんでした。", ephemeral=True)
+                return
+            preset = self._preset_repository.get_by_name(guild_id=interaction.guild_id, name=name)
+            if preset is None:
+                await interaction.response.send_message(_fmt("preset_not_found", name=name), ephemeral=True)
+                return
+            await interaction.response.send_message(_fmt("preset_anchor", name=name))
+            anchor_message = await interaction.original_response()
+            if self.user is not None:
+                self._save_conversation_message(
+                    ConversationMessage(
+                        discord_message_id=anchor_message.id,
+                        reply_to_message_id=None,
+                        guild_id=interaction.guild_id,
+                        channel_id=interaction.channel.id,
+                        user_id=self.user.id,
+                        role="system_anchor",
+                        content=preset.prompt,
+                    )
+                )
+
+        self._tree.add_command(preset_group)
+
         @self._tree.command(name="stats", description="このチャンネルの最後の推論統計を表示")
         async def stats(interaction: discord.Interaction) -> None:
             if interaction.channel_id is None:
@@ -331,6 +500,10 @@ class DiscordBotClient(discord.Client):
             if self._gpu_power_sampler.available:
                 gpu_task = asyncio.create_task(_poll_gpu())
             prior_messages = self._build_prior_messages(message)
+            preset_system_prompt: str | None = None
+            if prior_messages and prior_messages[0].role == "system_anchor":
+                preset_system_prompt = prior_messages[0].content
+                prior_messages = prior_messages[1:]
             try:
                 show_steps = self._config.show_steps
                 completed_lines: list[str] = []
@@ -397,6 +570,7 @@ class DiscordBotClient(discord.Client):
                     user_message=user_message,
                     user_images=user_images,
                     search_results=search_results,
+                    override_system_prompt=preset_system_prompt,
                 )
                 inference_started_at = _now_utc()
                 result = await self._ollama_client.generate_reply(ollama_messages)
@@ -486,7 +660,7 @@ class DiscordBotClient(discord.Client):
         stored_message = self._conversation_repository.get_message(message.reference.message_id)
         if stored_message is None:
             return False
-        return stored_message.role == "assistant"
+        return stored_message.role in ("assistant", "system_anchor")
 
     async def _extract_user_images(self, message: discord.Message) -> list[str]:
         if not self._config.vision_enabled:

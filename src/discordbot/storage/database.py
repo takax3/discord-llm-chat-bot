@@ -32,6 +32,18 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
 """
 
 
+CREATE_PROMPT_PRESETS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS prompt_presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(guild_id, name)
+)
+"""
+
+
 CREATE_INFERENCE_LOGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS inference_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,6 +75,7 @@ def initialize_database(sqlite_path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(sqlite_path)
     connection.execute(CREATE_GUILD_SETTINGS_TABLE_SQL)
     connection.execute(CREATE_CONVERSATION_MESSAGES_TABLE_SQL)
+    connection.execute(CREATE_PROMPT_PRESETS_TABLE_SQL)
     connection.execute(CREATE_INFERENCE_LOGS_TABLE_SQL)
     connection.commit()
     return connection
